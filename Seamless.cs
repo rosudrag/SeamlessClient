@@ -116,6 +116,7 @@ namespace SeamlessClient
             if (msg == null)
                 return;
 
+
             switch (msg.MessageType)
             {
                 case ClientMessageType.FirstJoin:
@@ -126,7 +127,6 @@ namespace SeamlessClient
                     ServerSwitcher.StartSwitching(msg.data);
                     break;
 
-                   
                 case ClientMessageType.OnlinePlayers: 
                     //Not implemented yet
                     break;

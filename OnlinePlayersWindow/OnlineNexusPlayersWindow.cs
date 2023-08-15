@@ -143,7 +143,7 @@ namespace SeamlessClient.OnlinePlayersWindow
 
 
         public OnlineNexusPlayersWindow()
-        : base(null, size: new Vector2(0.837f, 0.813f), backgroundColor: MyGuiConstants.SCREEN_BACKGROUND_COLOR, isTopMostScreen: false, backgroundTexture: MyGuiConstants.TEXTURE_SCREEN_BACKGROUND.Texture, backgroundTransition: MySandboxGame.Config.UIBkOpacity, guiTransition: MySandboxGame.Config.UIOpacity)
+        : base(null, size: new Vector2(0.87f, 0.813f), backgroundColor: MyGuiConstants.SCREEN_BACKGROUND_COLOR, isTopMostScreen: false, backgroundTexture: MyGuiConstants.TEXTURE_SCREEN_BACKGROUND.Texture, backgroundTransition: MySandboxGame.Config.UIBkOpacity, guiTransition: MySandboxGame.Config.UIOpacity)
         {
             base.EnabledBackgroundFade = true;
 
@@ -235,21 +235,34 @@ namespace SeamlessClient.OnlinePlayersWindow
         public override void RecreateControls(bool constructor)
         {
             base.RecreateControls(constructor);
+
             base.CloseButtonEnabled = true;
             Vector2 vector = base.Size.Value / MyGuiConstants.TEXTURE_SCREEN_BACKGROUND.SizeGui;
             _ = -0.5f * base.Size.Value + vector * MyGuiConstants.TEXTURE_SCREEN_BACKGROUND.PaddingSizeGui * 1.1f;
+
             m_caption = AddCaption(MyCommonTexts.ScreenCaptionPlayers, null, new Vector2(0f, 0.003f));
+
+            float LeftX = -0.4f;
+
+
+
             MyGuiControlSeparatorList myGuiControlSeparatorList = new MyGuiControlSeparatorList();
-            myGuiControlSeparatorList.AddHorizontal(new Vector2(-0.364f, -0.331f), 0.728f);
-            Vector2 start = new Vector2(-0.364f, 0.358f);
-            myGuiControlSeparatorList.AddHorizontal(start, 0.728f);
-            myGuiControlSeparatorList.AddHorizontal(new Vector2(-0.36f, 0.05f), 0.17f);
+            myGuiControlSeparatorList.AddHorizontal(new Vector2(LeftX, -0.331f), 0.79f);
+
+            Vector2 start = new Vector2(LeftX, 0.358f);
+            myGuiControlSeparatorList.AddHorizontal(start, 0.79f);
+            myGuiControlSeparatorList.AddHorizontal(new Vector2(LeftX, 0.05f), 0.17f);
             Controls.Add(myGuiControlSeparatorList);
+
+
             Vector2 vector2 = new Vector2(0f, 0.057f);
-            Vector2 vector3 = new Vector2(-0.361f, -0.304f);
+            Vector2 vector3 = new Vector2(LeftX, -0.304f);
+
             m_profileButton = new MyGuiControlButton(vector3, MyGuiControlButtonStyleEnum.Default, null, null, MyGuiDrawAlignEnum.HORISONTAL_LEFT_AND_VERTICAL_TOP, null, MyTexts.Get(MyCommonTexts.ScreenPlayers_Profile));
             m_profileButton.ButtonClicked += profileButton_ButtonClicked;
             Controls.Add(m_profileButton);
+
+
             vector3 += vector2;
             m_promoteButton = new MyGuiControlButton(vector3, MyGuiControlButtonStyleEnum.Default, null, null, MyGuiDrawAlignEnum.HORISONTAL_LEFT_AND_VERTICAL_TOP, null, MyTexts.Get(MyCommonTexts.ScreenPlayers_Promote));
             m_promoteButton.ButtonClicked += promoteButton_ButtonClicked;
@@ -272,7 +285,8 @@ namespace SeamlessClient.OnlinePlayersWindow
             m_tradeButton.ButtonClicked += tradeButton_ButtonClicked;
             Controls.Add(m_tradeButton);
             bool num = MyMultiplayer.Static != null && MyMultiplayer.Static.IsLobby;
-            Vector2 vector4 = vector3 + new Vector2(-0.002f, m_tradeButton.Size.Y + 0.03f);
+            Vector2 vector4 = vector3 + new Vector2(-0.0f, m_tradeButton.Size.Y + 0.03f);
+
             MyGuiControlLabel control = new MyGuiControlLabel(vector4, null, MyTexts.GetString(MySpaceTexts.PlayersScreen_LobbyType), null, 0.8f, "Blue", MyGuiDrawAlignEnum.HORISONTAL_LEFT_AND_VERTICAL_TOP);
             if (num)
             {
@@ -312,46 +326,16 @@ namespace SeamlessClient.OnlinePlayersWindow
             {
                 Controls.Add(m_maxPlayersSlider);
             }
-            m_inviteButton = new MyGuiControlButton(new Vector2(-0.361f, 0.28500003f), MyGuiControlButtonStyleEnum.Default, null, null, MyGuiDrawAlignEnum.HORISONTAL_LEFT_AND_VERTICAL_TOP, null, MyTexts.Get(MyCommonTexts.ScreenPlayers_Invite));
+            m_inviteButton = new MyGuiControlButton(new Vector2(LeftX, 0.28500003f), MyGuiControlButtonStyleEnum.Default, null, null, MyGuiDrawAlignEnum.HORISONTAL_LEFT_AND_VERTICAL_TOP, null, MyTexts.Get(MyCommonTexts.ScreenPlayers_Invite));
             m_inviteButton.ButtonClicked += inviteButton_ButtonClicked;
             Controls.Add(m_inviteButton);
-            Vector2 vector6 = new Vector2(0.364f, -0.301f);
-            Vector2 size = new Vector2(0.54f, 0.813f);
+
+
+            Vector2 vector6 = new Vector2(0.4f, -0.306f);
+            Vector2 size = new Vector2(0.62f, 0.813f);
             int num2 = 18;
             float num3 = 0f;
-            MySessionComponentMatch component = MySession.Static.GetComponent<MySessionComponentMatch>();
-            if (component.IsEnabled)
-            {
-                Vector2 vector7 = GetPositionAbsolute() + vector6 + new Vector2(0f - size.X, 0f);
-                m_warfare_timeRemainting_label = new MyGuiControlLabel(vector6 - new Vector2(size.X, 0f));
-                m_warfare_timeRemainting_label.Text = MyTexts.GetString(MySpaceTexts.WarfareCounter_TimeRemaining).ToString() + ": ";
-                Controls.Add(m_warfare_timeRemainting_label);
-                TimeSpan timeSpan = TimeSpan.FromMinutes(component.RemainingMinutes);
-                m_warfare_timeRemainting_time = new MyGuiControlLabel(vector6 - new Vector2(size.X, 0f) + new Vector2(m_warfare_timeRemainting_label.Size.X, 0f));
-                m_warfare_timeRemainting_time.Text = timeSpan.ToString((timeSpan.TotalHours >= 1.0) ? "hh\\:mm\\:ss" : "mm\\:ss");
-                Controls.Add(m_warfare_timeRemainting_time);
-                if (MySession.Static.Settings.EnableTeamScoreCounters)
-                {
-                    float num4 = 0.09f;
-                    float num5 = size.X / 3f - 2f * num3;
-                    int num6 = 0;
-                    MyFaction[] allFactions = MySession.Static.Factions.GetAllFactions();
-                    foreach (MyFaction myFaction in allFactions)
-                    {
-                        if ((myFaction.Name.StartsWith("Red") || myFaction.Name.StartsWith("Green") || myFaction.Name.StartsWith("Blue")) && myFaction.Name.EndsWith("Faction"))
-                        {
-                            Controls.Add(new MyGuiScreenPlayersWarfareTeamScoreTable(vector7 + new Vector2((float)num6 * (num5 + num3), m_warfare_timeRemainting_label.Size.Y + num3), num5, num4, myFaction.Name, myFaction.FactionIcon.Value.String, MyTexts.GetString(MySpaceTexts.WarfareCounter_EscapePod), myFaction.FactionId, drawOwnBackground: false, drawBorders: true, myFaction.IsMember(MySession.Static.LocalHumanPlayer.Identity.IdentityId)));
-                            num6++;
-                        }
-                    }
-                    vector6.Y += m_warfare_timeRemainting_label.Size.Y + num4 + num3 * 2f;
-                    num2 -= 3;
-                }
-                else
-                {
-                    vector6.Y += m_warfare_timeRemainting_label.Size.Y;
-                }
-            }
+
             m_playersTable = new MyGuiControlTable
             {
                 Position = vector6,
