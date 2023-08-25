@@ -33,6 +33,7 @@ using VRage.Input;
 using SeamlessClient.Utilities;
 using System.Reflection;
 using HarmonyLib;
+using SeamlessClient.Messages;
 
 namespace SeamlessClient.OnlinePlayersWindow
 {
@@ -56,7 +57,10 @@ namespace SeamlessClient.OnlinePlayersWindow
 
         protected int PlayerMutedColumn = 4;
 
-        protected int PlayerTableColumnsCount = 5;
+        protected int PlayerServerColumn = 5;
+
+
+        protected int PlayerTableColumnsCount = 6;
 
         private int m_warfareUpdate_frameCount = 30;
 
@@ -258,7 +262,7 @@ namespace SeamlessClient.OnlinePlayersWindow
             Vector2 vector2 = new Vector2(0f, 0.057f);
             Vector2 vector3 = new Vector2(LeftX, -0.304f);
 
-            m_profileButton = new MyGuiControlButton(vector3, MyGuiControlButtonStyleEnum.Default, null, null, MyGuiDrawAlignEnum.HORISONTAL_LEFT_AND_VERTICAL_TOP, null, MyTexts.Get(MyCommonTexts.ScreenPlayers_Profile));
+            m_profileButton = new MyGuiControlButton(vector3, MyGuiControlButtonStyleEnum.Default, new Vector2(.4f, .2f), null, MyGuiDrawAlignEnum.HORISONTAL_LEFT_AND_VERTICAL_TOP, null, MyTexts.Get(MyCommonTexts.ScreenPlayers_Profile));
             m_profileButton.ButtonClicked += profileButton_ButtonClicked;
             Controls.Add(m_profileButton);
 
@@ -345,18 +349,25 @@ namespace SeamlessClient.OnlinePlayersWindow
             };
             m_playersTable.GamepadHelpTextId = MySpaceTexts.PlayersScreen_Help_PlayersList;
             m_playersTable.VisibleRowsCount = num2;
-            float num7 = 0.3f;
+
+            float num6 = 0.25f;
+            float num7 = 0.25f;
             float num8 = 0.12f;
-            float num9 = 0.12f;
-            float num10 = 0.13f;
-            m_playersTable.SetCustomColumnWidths(new float[5]
+            float num9 = 0.08f;
+            float num10 = 0.08f;
+            float num11 = 1 - num6 - num7 - num8 - num9 - num10;
+
+
+            m_playersTable.SetCustomColumnWidths(new float[6]
             {
+            num6,
             num7,
-            1f - num7 - num8 - num10 - num9,
             num8,
             num9,
-            num10
+            num10,
+            num11
             });
+
             m_playersTable.SetColumnComparison(PlayerNameColumn, (MyGuiControlTable.Cell a, MyGuiControlTable.Cell b) => a.Text.CompareToIgnoreCase(b.Text));
             m_playersTable.SetColumnName(PlayerNameColumn, MyTexts.Get(MyCommonTexts.ScreenPlayers_PlayerName));
             m_playersTable.SetColumnComparison(PlayerFactionNameColumn, (MyGuiControlTable.Cell a, MyGuiControlTable.Cell b) => a.Text.CompareToIgnoreCase(b.Text));
@@ -366,12 +377,16 @@ namespace SeamlessClient.OnlinePlayersWindow
             m_playersTable.SetColumnName(GameAdminColumn, MyTexts.Get(MyCommonTexts.ScreenPlayers_Rank));
             m_playersTable.SetColumnComparison(GamePingColumn, GamePingCompare);
             m_playersTable.SetColumnName(GamePingColumn, MyTexts.Get(MyCommonTexts.ScreenPlayers_Ping));
-
+            m_playersTable.SetColumnName(PlayerServerColumn, new StringBuilder("OnServer"));
 
 
             m_playersTable.ItemSelected += playersTable_ItemSelected;
             m_playersTable.UpdateTableSortHelpText();
             Controls.Add(m_playersTable);
+
+
+            string servername = PlayersWindowComponent.onlineServer?.ServerName ?? "thisServer";
+
             foreach (MyPlayer onlinePlayer in Sync.Players.GetOnlinePlayers())
             {
                 if (onlinePlayer.Id.SerialId != 0)
@@ -387,8 +402,21 @@ namespace SeamlessClient.OnlinePlayersWindow
                         _ = onlinePlayer.Id.SteamId;
                     }
                 }
-                AddPlayer(onlinePlayer.Id.SteamId);
+
+
+
+                AddPlayer(onlinePlayer.Id.SteamId, servername);
             }
+
+
+            foreach(var server in PlayersWindowComponent.allServers)
+            {
+
+                foreach(var player in server.Players)
+                    AddPlayerFromOtherServer(player, server.ServerName);
+            }
+
+
             m_lobbyTypeCombo.ItemSelected += lobbyTypeCombo_OnSelect;
             if (m_lastSelected != 0L)
             {
@@ -509,13 +537,100 @@ namespace SeamlessClient.OnlinePlayersWindow
             }
         }
 
-        protected void AddPlayer(ulong userId)
+
+
+        public void AddPlayerFromOtherServer(OnlinePlayer player, string ServerName)
+        {
+
+            string memberName = player.PlayerName;
+            ulong userId = player.SteamID;
+
+            MyGuiControlTable.Row row = new MyGuiControlTable.Row(userId);
+            StringBuilder text = new StringBuilder();
+
+
+            MyGuiControlTable.Cell cell = new MyGuiControlTable.Cell(memberName, memberName);
+            cell.IsAutoScaleEnabled = true;
+            cell.MinTextScale = 0.3f;
+            row.AddCell(cell);
+
+            long playerId = player.IdentityID;
+            MyFaction playerFaction = MySession.Static.Factions.GetPlayerFaction(playerId);
+            string text2 = "";
+            StringBuilder stringBuilder = new StringBuilder();
+            if (playerFaction != null)
+            {
+                text2 += playerFaction.Name;
+                text2 = text2 + " | " + memberName;
+                foreach (KeyValuePair<long, MyFactionMember> member in playerFaction.Members)
+                {
+                    if ((member.Value.IsLeader || member.Value.IsFounder) && MySession.Static.Players.TryGetPlayerId(member.Value.PlayerId, out var result) && MySession.Static.Players.TryGetPlayerById(result, out var playera))
+                    {
+                        text2 = text2 + " | " + playera.DisplayName;
+                        break;
+                    }
+                }
+                stringBuilder.Append(MyStatControlText.SubstituteTexts(playerFaction.Name));
+                if (playerFaction.IsLeader(playerId))
+                {
+                    stringBuilder.Append(" (").Append(MyTexts.Get(MyCommonTexts.Leader)).Append(")");
+                }
+                if (!string.IsNullOrEmpty(playerFaction.Tag))
+                {
+                    stringBuilder.Insert(0, "[" + playerFaction.Tag + "] ");
+                }
+            }
+            row.AddCell(new MyGuiControlTable.Cell(stringBuilder, null, text2));
+            StringBuilder stringBuilder2 = new StringBuilder();
+            MyPromoteLevel userPromoteLevel = MySession.Static.GetUserPromoteLevel(userId);
+            for (int i = 0; i < (int)userPromoteLevel; i++)
+            {
+                stringBuilder2.Append("*");
+            }
+            row.AddCell(new MyGuiControlTable.Cell(stringBuilder2));
+            if (pings.ContainsKey(userId))
+            {
+                row.AddCell(new MyGuiControlTable.Cell(new StringBuilder(pings[userId].ToString())));
+            }
+            else
+            {
+                row.AddCell(new MyGuiControlTable.Cell(new StringBuilder("----")));
+            }
+            MyGuiControlTable.Cell cell2 = new MyGuiControlTable.Cell(new StringBuilder(""));
+            row.AddCell(cell2);
+            if (userId != Sync.MyId)
+            {
+                MyGuiControlButton myGuiControlButton = new MyGuiControlButton();
+                myGuiControlButton.CustomStyle = m_buttonSizeStyleSilent;
+                myGuiControlButton.Size = new Vector2(0.03f, 0.04f);
+                myGuiControlButton.CueEnum = GuiSounds.None;
+                myGuiControlButton.ButtonClicked += OnToggleMutePressed;
+                myGuiControlButton.UserData = userId;
+                cell2.Control = myGuiControlButton;
+                m_playersTable.Controls.Add(myGuiControlButton);
+                RefreshMuteIcons();
+            }
+
+
+            row.AddCell(new MyGuiControlTable.Cell(ServerName));
+
+
+            m_playersTable.Add(row);
+            UpdateCaption();
+        }
+
+
+
+
+        protected void AddPlayer(ulong userId, string ServerName)
         {
             string memberName = MyMultiplayer.Static.GetMemberName(userId);
             if (string.IsNullOrEmpty(memberName))
             {
                 return;
             }
+
+
             MyGuiControlTable.Row row = new MyGuiControlTable.Row(userId);
             string memberServiceName = MyMultiplayer.Static.GetMemberServiceName(userId);
             StringBuilder text = new StringBuilder();
@@ -581,6 +696,11 @@ namespace SeamlessClient.OnlinePlayersWindow
                 m_playersTable.Controls.Add(myGuiControlButton);
                 RefreshMuteIcons();
             }
+
+
+            row.AddCell(new MyGuiControlTable.Cell(ServerName));
+
+
             m_playersTable.Add(row);
             UpdateCaption();
         }
@@ -676,7 +796,7 @@ namespace SeamlessClient.OnlinePlayersWindow
 
         protected void Multiplayer_PlayerJoined(ulong userId, string userName)
         {
-            AddPlayer(userId);
+            AddPlayer(userId, PlayersWindowComponent.onlineServer.ServerName);
         }
 
         protected void Multiplayer_PlayerLeft(ulong userId, MyChatMemberStateChangeEnum arg2)

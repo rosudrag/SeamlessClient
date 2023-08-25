@@ -42,6 +42,9 @@ namespace SeamlessClient.Messages
 
         [ProtoMember(4)] public int OnServer;
 
+
+        public string ServerName;
+
         public OnlinePlayer(string PlayerName, ulong SteamID, long IdentityID, int OnServer)
         {
             this.PlayerName = PlayerName;
