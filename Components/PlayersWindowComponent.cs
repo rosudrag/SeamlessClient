@@ -2,6 +2,7 @@
 using Sandbox.Game;
 using Sandbox.Game.Gui;
 using Sandbox.Game.World;
+using SeamlessClient.Messages;
 using SeamlessClient.Utilities;
 using System;
 using System.Collections.Generic;
@@ -12,7 +13,7 @@ using System.Threading.Tasks;
 namespace SeamlessClient.OnlinePlayersWindow
 {
 
-    public class PlayersWindow : ComponentBase
+    public class PlayersWindowComponent : ComponentBase
     {
 
         public override void Patch(Harmony patcher)
@@ -24,6 +25,11 @@ namespace SeamlessClient.OnlinePlayersWindow
         public override void Initilized()
         {
             MyPerGameSettings.GUI.PlayersScreen = typeof(OnlineNexusPlayersWindow); 
+        }
+
+        public static void ApplyRecievedPlayers(List<OnlineServer> servers, int CurrentServer)
+        {
+            Seamless.TryShow($"Recieved {CurrentServer} - {servers.Count}");
         }
 
 

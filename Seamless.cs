@@ -3,6 +3,7 @@ using NLog.Fluent;
 using Sandbox.Game.World;
 using Sandbox.ModAPI;
 using SeamlessClient.Messages;
+using SeamlessClient.OnlinePlayersWindow;
 using SeamlessClient.ServerSwitching;
 using SeamlessClient.Utilities;
 using System;
@@ -13,6 +14,7 @@ using System.Net.NetworkInformation;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using VRage.GameServices;
 using VRage.Plugins;
 using VRage.Sync;
 using VRage.Utils;
@@ -22,12 +24,17 @@ namespace SeamlessClient
     public class Seamless : IPlugin
     {
         public static Version SeamlessVersion;
+        public static Version NexusVersion;
         private static Harmony SeamlessPatcher;
         public const ushort SeamlessClientNetId = 2936;
 
         private List<ComponentBase> allComps = new List<ComponentBase>();
         private Assembly thisAssembly;
         private bool Initilized = false;
+        public static bool isSeamlessServer = false;
+
+
+
 
 #if DEBUG
         public static bool isDebug = true;
@@ -72,6 +79,7 @@ namespace SeamlessClient
                 }
             }
         }
+
         private void PatchComponents(Harmony patcher)
         {
             foreach (ComponentBase component in allComps)
@@ -89,6 +97,7 @@ namespace SeamlessClient
                 }
             }
         }
+
         private void InitilizeComponents()
         {
             foreach(ComponentBase component in allComps)
@@ -112,27 +121,35 @@ namespace SeamlessClient
             if (!fromServer || sender != 0)
                 return;
 
+            if (MyAPIGateway.Multiplayer == null || MyAPIGateway.Multiplayer.IsServer) return;
+            if (MyAPIGateway.Session.LocalHumanPlayer == null) return;
+
+
             ClientMessage msg = MessageUtils.Deserialize<ClientMessage>(data);
             if (msg == null)
                 return;
 
+            //Get Nexus Version
+            NexusVersion = Version.Parse(msg.NexusVersion);
 
             switch (msg.MessageType)
             {
                 case ClientMessageType.FirstJoin:
-                    MyAPIGateway.Multiplayer?.SendMessageToServer(SeamlessClientNetId, MessageUtils.Serialize(new ClientMessage(ClientMessageType.FirstJoin)));
+
+                    ClientMessage response = new ClientMessage(SeamlessVersion.ToString());
+                    MyAPIGateway.Multiplayer?.SendMessageToServer(SeamlessClientNetId, MessageUtils.Serialize(response));
                     break;
 
                 case ClientMessageType.TransferServer:
-                    ServerSwitcher.StartSwitching(msg.data);
+                    StartSwitch(msg.GetTransferData());
                     break;
 
-                case ClientMessageType.OnlinePlayers: 
+                case ClientMessageType.OnlinePlayers:
                     //Not implemented yet
+                    var playerData = msg.GetOnlinePlayers();
+                    PlayersWindowComponent.ApplyRecievedPlayers(playerData.OnlineServers, playerData.currentServerID);
                     break;
             }
-
-
         }
 
 
@@ -157,6 +174,31 @@ namespace SeamlessClient
                 Initilized = true;
             }
         }
+
+
+
+        public static void StartSwitch(TransferData targetServer)
+        {
+            if (targetServer.TargetServerId == 0)
+            {
+                Seamless.TryShow("This is not a valid server!");
+                return;
+            }
+
+            var server = new MyGameServerItem
+            {
+                ConnectionString = targetServer.IpAddress,
+                SteamID = targetServer.TargetServerId,
+                Name = targetServer.ServerName
+            };
+
+
+            Seamless.TryShow($"Beginning Redirect to server: {targetServer.TargetServerId}");
+            var world = targetServer.WorldRequest.DeserializeWorldData();
+            ServerSwitcherComponent.Instance.StartBackendSwitch(server, world);
+        }
+
+
 
 
 

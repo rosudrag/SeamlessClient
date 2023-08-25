@@ -25,6 +25,10 @@ namespace SeamlessClient.Messages
 
         [ProtoMember(5)] public MyObjectBuilder_Gps GpsCollection;
 
+        public WorldRequest()
+        {
+        }
+
         public WorldRequest(ulong playerId, long playerIdentity, string name)
         {
             this.PlayerID = playerId;
@@ -32,9 +36,7 @@ namespace SeamlessClient.Messages
             this.IdentityID = playerIdentity;
         }
 
-        public WorldRequest()
-        {
-        }
+       
 
         public void SerializeWorldData(MyObjectBuilder_World WorldData)
         {

@@ -61,6 +61,10 @@
       <HintPath>GameBinaries\Sandbox.Graphics.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="SpaceEngineers.Game">
+      <HintPath>GameBinaries\SpaceEngineers.Game.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
@@ -86,16 +90,24 @@
       <HintPath>GameBinaries\VRage.Math.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="VRage.Render">
+      <HintPath>GameBinaries\VRage.Render.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Components\EntityPerformanceImprovements.cs" />
+    <Compile Include="Components\LoadingScreenComponent.cs" />
+    <Compile Include="Messages\OnlinePlayerData.cs" />
+    <Compile Include="Utilities\PatchUtils.cs" />
     <Compile Include="Messages\ClientMessage.cs" />
     <Compile Include="Messages\TransferData.cs" />
     <Compile Include="Messages\WorldRequestData.cs" />
     <Compile Include="OnlinePlayersWindow\OnlineNexusPlayersWindow.cs" />
-    <Compile Include="OnlinePlayersWindow\PlayersWindow.cs" />
+    <Compile Include="Components\PlayersWindowComponent.cs" />
     <Compile Include="Seamless.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="ServerSwitching\ServerSwitcher.cs" />
+    <Compile Include="Components\ServerSwitcherComponent.cs" />
+    <Compile Include="Utilities\AsyncInvoke.cs" />
     <Compile Include="Utilities\MessageUtils.cs" />
     <Compile Include="Utilities\ComponentBase.cs" />
     <Compile Include="Utilities\Types.cs" />
@@ -105,7 +117,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
-  <ItemGroup />
+  <ItemGroup>
+    <Folder Include="ServerSwitching\" />
+  </ItemGroup>
   <ItemGroup>
     <Content Include="SeamlessClient.xml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

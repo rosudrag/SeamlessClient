@@ -21,29 +21,35 @@ namespace SeamlessClient.Messages
     public class ClientMessage
     {
         [ProtoMember(1)] public ClientMessageType MessageType;
-        [ProtoMember(2)] public TransferData data;
+        [ProtoMember(2)] public byte[] MessageData;
         [ProtoMember(3)] public long IdentityID;
         [ProtoMember(4)] public ulong SteamID;
         [ProtoMember(5)] public string PluginVersion = "0";
+        [ProtoMember(6)] public string NexusVersion = "0";
 
-        public ClientMessage(ClientMessageType Type)
+        public ClientMessage(string PluginVersion)
         {
-            MessageType = Type;
-
-            if (MyAPIGateway.Multiplayer == null || MyAPIGateway.Multiplayer.IsServer) return;
-            if (MyAPIGateway.Session.LocalHumanPlayer == null) return;
+            MessageType = ClientMessageType.FirstJoin;
 
             IdentityID = MySession.Static?.LocalHumanPlayer?.Identity?.IdentityId ?? 0;
             SteamID = MySession.Static?.LocalHumanPlayer?.Id.SteamId ?? 0;
-            //PluginVersion = SeamlessClient.Version;
+            this.PluginVersion = PluginVersion;
+
         }
 
-
-        public ClientMessage()
+        public TransferData GetTransferData()
         {
+            return MessageData == null ? default : MessageUtils.Deserialize<TransferData>(MessageData);
         }
 
+        public OnlinePlayerData GetOnlinePlayers()
+        {
+            if (MessageData == null)
+                return default;
 
+            var msg = MessageUtils.Deserialize<OnlinePlayerData>(MessageData);
+            return msg;
+        }
 
     }
 }
