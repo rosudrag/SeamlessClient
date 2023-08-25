@@ -50,18 +50,9 @@ namespace SeamlessClient.Components
 
 
         /* Static Contructors */
-        public static ConstructorInfo ClientConstructor { get; private set; }
-        public static ConstructorInfo SyncLayerConstructor { get; private set; }
-        public static ConstructorInfo TransportLayerConstructor { get; private set; }
         public static ConstructorInfo MySessionConstructor { get; private set; }
         public static ConstructorInfo MyMultiplayerClientBaseConstructor { get; private set; }
 
-
-        /* Static FieldInfos and PropertyInfos */
-        public static PropertyInfo MySessionLayer { get; private set; }
-       
-        public static FieldInfo AdminSettings { get; private set; }
-        public static FieldInfo MPlayerGpsCollection { get; private set; }
 
 
         /* Static MethodInfos */
@@ -78,23 +69,12 @@ namespace SeamlessClient.Components
         public static MethodInfo UnloadProceduralWorldGenerator;
 
 
-
-
         public override void Patch(Harmony patcher)
         {
-            ClientConstructor = GetConstructor(ClientType, new[] { typeof(MyGameServerItem), SyncLayerType });
-            SyncLayerConstructor = GetConstructor(SyncLayerType, new[] { MyTransportLayerType });
-            TransportLayerConstructor = GetConstructor(MyTransportLayerType, new[] { typeof(int) });
+         
             MySessionConstructor = GetConstructor(MySessionType, new[] { typeof(MySyncLayer), typeof(bool) });
             MyMultiplayerClientBaseConstructor = GetConstructor(MyMultiplayerClientBase, new[] { typeof(MySyncLayer) });
 
-
-            /* Get Fields and Properties */
-            MySessionLayer = GetProperty(typeof(MySession), "SyncLayer");
-            AdminSettings = GetField(typeof(MySession), "m_adminSettings");
-            
-            MPlayerGpsCollection = GetField(typeof(MyPlayerCollection), "m_players");
-   
 
 
             /* Get Methods */

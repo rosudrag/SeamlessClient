@@ -16,6 +16,9 @@ namespace SeamlessClient.OnlinePlayersWindow
     public class PlayersWindowComponent : ComponentBase
     {
 
+
+
+
         public override void Patch(Harmony patcher)
         {
             patcher.CreateClassProcessor(typeof(OnlineNexusPlayersWindow)).Patch();
@@ -30,6 +33,8 @@ namespace SeamlessClient.OnlinePlayersWindow
         public static void ApplyRecievedPlayers(List<OnlineServer> servers, int CurrentServer)
         {
             Seamless.TryShow($"Recieved {CurrentServer} - {servers.Count}");
+
+
         }
 
 

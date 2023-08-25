@@ -33,6 +33,12 @@ namespace SeamlessClient.ServerSwitching
 {
     public class ServerSwitcherComponent : ComponentBase
     {
+        public static ConstructorInfo ClientConstructor;
+        public static ConstructorInfo SyncLayerConstructor;
+        public static ConstructorInfo TransportLayerConstructor;
+
+        public static PropertyInfo MySessionLayer;
+
         private static FieldInfo RemoteAdminSettings;
         private static FieldInfo AdminSettings;
         private static MethodInfo UnloadProceduralWorldGenerator;
@@ -63,6 +69,13 @@ namespace SeamlessClient.ServerSwitching
 
         public override void Patch(Harmony patcher)
         {
+            MySessionLayer = PatchUtils.GetProperty(typeof(MySession), "SyncLayer");
+
+            ClientConstructor = PatchUtils.GetConstructor(PatchUtils.ClientType, new[] { typeof(MyGameServerItem), PatchUtils.SyncLayerType });
+            SyncLayerConstructor = PatchUtils.GetConstructor(PatchUtils.SyncLayerType, new[] { PatchUtils.MyTransportLayerType });
+            TransportLayerConstructor = PatchUtils.GetConstructor(PatchUtils.MyTransportLayerType, new[] { typeof(int) });
+
+
             RemoteAdminSettings = PatchUtils.GetField(typeof(MySession), "m_remoteAdminSettings");
             AdminSettings = PatchUtils.GetField(typeof(MySession), "m_adminSettings");
             VirtualClients = PatchUtils.GetField(typeof(MySession), "VirtualClients");
@@ -124,7 +137,7 @@ namespace SeamlessClient.ServerSwitching
 
                 UnloadServer();
                 SetNewMultiplayerClient();
-
+                
 
             });
         }
@@ -174,17 +187,41 @@ namespace SeamlessClient.ServerSwitching
         private void SetNewMultiplayerClient()
         {
             OnJoinEvent += ServerSwitcherComponent_OnJoinEvent;
+
+            MySandboxGame.Static.SessionCompatHelper.FixSessionComponentObjectBuilders(TargetWorld.Checkpoint, TargetWorld.Sector);
+
+
+            // Create constructors
+            var LayerInstance = TransportLayerConstructor.Invoke(new object[] { 2 });
+            var SyncInstance = SyncLayerConstructor.Invoke(new object[] { LayerInstance });
+            var instance = ClientConstructor.Invoke(new object[] { TargetServer, SyncInstance });
+
+
+            MyMultiplayer.Static = UtilExtensions.CastToReflected(instance, PatchUtils.ClientType);
+            MyMultiplayer.Static.ExperimentalMode = true;
+
+            // Set the new SyncLayer to the MySession.Static.SyncLayer
+            MySessionLayer.SetValue(MySession.Static, MyMultiplayer.Static.SyncLayer);
+
+            Seamless.TryShow("Successfully set MyMultiplayer.Static");
+
+
+            Sync.Clients.SetLocalSteamId(Sync.MyId, false, MyGameService.UserName);
+            Sync.Players.RegisterEvents();
         }
 
         private void ServerSwitcherComponent_OnJoinEvent(object sender, JoinResultMsg e)
         {
             OnJoinEvent -= ServerSwitcherComponent_OnJoinEvent;
+
+
             if (e.JoinResult != JoinResult.OK) 
             {
                 Seamless.TryShow("Failed to join the target server!");
                 return;
             }
 
+            Seamless.TryShow("Starting new MP Client!");
 
             /* On Server Successfull Join
              * 

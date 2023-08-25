@@ -98,6 +98,7 @@
     <Compile Include="Components\EntityPerformanceImprovements.cs" />
     <Compile Include="Components\LoadingScreenComponent.cs" />
     <Compile Include="Messages\OnlinePlayerData.cs" />
+    <Compile Include="Utilities\UtilExtensions.cs" />
     <Compile Include="Utilities\PatchUtils.cs" />
     <Compile Include="Messages\ClientMessage.cs" />
     <Compile Include="Messages\TransferData.cs" />

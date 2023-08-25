@@ -113,7 +113,6 @@ namespace SeamlessClient
         {
             //Ignore anything except dedicated server
 
-            Seamless.TryShow($"From Server {fromServer} - {sender}");
             if (!fromServer || sender == 0)
                 return;
 
@@ -122,15 +121,12 @@ namespace SeamlessClient
                 return;
 
             //Get Nexus Version
-            Seamless.TryShow($"NexusVersion {msg.NexusVersion}");
             if (!string.IsNullOrEmpty(msg.NexusVersion))
                 NexusVersion = Version.Parse(msg.NexusVersion);
 
             switch (msg.MessageType)
             {
                 case ClientMessageType.FirstJoin:
-
-
                     Seamless.TryShow("Sending First Join!");
                     ClientMessage response = new ClientMessage(SeamlessVersion.ToString());
                     MyAPIGateway.Multiplayer?.SendMessageToServer(SeamlessClientNetId, MessageUtils.Serialize(response));
