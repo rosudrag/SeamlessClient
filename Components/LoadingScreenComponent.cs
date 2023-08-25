@@ -17,6 +17,7 @@ using VRage.Game;
 using Sandbox.Engine.Networking;
 using VRage;
 using VRage.GameServices;
+using VRageRender;
 
 namespace SeamlessClient.Components
 {
@@ -36,8 +37,8 @@ namespace SeamlessClient.Components
 
 
             patcher.Patch(loadingAction, prefix: new HarmonyMethod(Get(typeof(LoadingScreenComponent), nameof(LoadMultiplayerSession))));
-            patcher.Patch(loadingScreenDraw, prefix: new HarmonyMethod(Get(typeof(LoadingScreenComponent), nameof(DrawInternal))));
-
+            patcher.Patch(loadingScreenDraw, prefix: new HarmonyMethod(Get(typeof(LoadingScreenComponent), nameof(DrawInternal_PRE))));
+            patcher.Patch(loadingScreenDraw, postfix: new HarmonyMethod(Get(typeof(LoadingScreenComponent), nameof(DrawInternal_POST))));
 
 
             base.Patch(patcher);
@@ -112,16 +113,11 @@ namespace SeamlessClient.Components
         }
 
 
-        private static bool DrawInternal(MyGuiScreenLoading __instance)
+        private static bool DrawInternal_PRE(MyGuiScreenLoading __instance)
         {
             //If we dont have a custom loading screen texture, do not do the special crap below
 
-            const string mFont = "LoadingScreen";
-            var mTransitionAlpha = (float)typeof(MyGuiScreenBase).GetField("m_transitionAlpha", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(__instance);
-            MyGuiManager.DrawString(mFont, "Nexus & SeamlessClient Made by: Casimir", new Vector2(0.95f, 0.95f),
-                MyGuiSandbox.GetDefaultTextScaleWithLanguage() * 1.1f,
-                new Color(MyGuiConstants.LOADING_PLEASE_WAIT_COLOR * mTransitionAlpha),
-                MyGuiDrawAlignEnum.HORISONTAL_CENTER_AND_VERTICAL_BOTTOM);
+
 
 
 
@@ -129,7 +125,8 @@ namespace SeamlessClient.Components
                 return true;
 
 
-   
+            const string mFont = "LoadingScreen";
+            var mTransitionAlpha = (float)typeof(MyGuiScreenBase).GetField("m_transitionAlpha", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(__instance);
 
             var color = new Color(255, 255, 255, 250);
             color.A = (byte)(color.A * mTransitionAlpha);
@@ -155,6 +152,12 @@ namespace SeamlessClient.Components
 
 
 
+
+
+
+
+
+
             /*
             if (string.IsNullOrEmpty(m_customTextFromConstructor))
             {
@@ -172,6 +175,14 @@ namespace SeamlessClient.Components
             return false;
         }
 
-
+        private static void DrawInternal_POST(MyGuiScreenLoading __instance)
+        {
+            const string mFont = "LoadingScreen";
+            var mTransitionAlpha = (float)typeof(MyGuiScreenBase).GetField("m_transitionAlpha", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(__instance);
+            MyGuiManager.DrawString(mFont, "Nexus & SeamlessClient Made by: Casimir", new Vector2(0.95f, 0.95f),
+                MyGuiSandbox.GetDefaultTextScaleWithLanguage() * 1.1f,
+                new Color(MyGuiConstants.LOADING_PLEASE_WAIT_COLOR * mTransitionAlpha),
+                MyGuiDrawAlignEnum.HORISONTAL_CENTER_AND_VERTICAL_BOTTOM);
+        }
     }
 }

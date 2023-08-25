@@ -24,7 +24,7 @@ namespace SeamlessClient
     public class Seamless : IPlugin
     {
         public static Version SeamlessVersion;
-        public static Version NexusVersion;
+        public static Version NexusVersion = new Version(1, 0, 0);
         private static Harmony SeamlessPatcher;
         public const ushort SeamlessClientNetId = 2936;
 
@@ -33,14 +33,8 @@ namespace SeamlessClient
         private bool Initilized = false;
         public static bool isSeamlessServer = false;
 
-
-
-
-#if DEBUG
         public static bool isDebug = true;
-#else
-        public static bool isDebug = false;
-#endif
+
 
 
         public void Init(object gameInstance)
@@ -118,24 +112,26 @@ namespace SeamlessClient
         private static void MessageHandler(ushort packetID, byte[] data, ulong sender, bool fromServer)
         {
             //Ignore anything except dedicated server
-            if (!fromServer || sender != 0)
+
+            Seamless.TryShow($"From Server {fromServer} - {sender}");
+            if (!fromServer || sender == 0)
                 return;
-
-            if (MyAPIGateway.Multiplayer == null || MyAPIGateway.Multiplayer.IsServer) return;
-            if (MyAPIGateway.Session.LocalHumanPlayer == null) return;
-
 
             ClientMessage msg = MessageUtils.Deserialize<ClientMessage>(data);
             if (msg == null)
                 return;
 
             //Get Nexus Version
-            NexusVersion = Version.Parse(msg.NexusVersion);
+            Seamless.TryShow($"NexusVersion {msg.NexusVersion}");
+            if (!string.IsNullOrEmpty(msg.NexusVersion))
+                NexusVersion = Version.Parse(msg.NexusVersion);
 
             switch (msg.MessageType)
             {
                 case ClientMessageType.FirstJoin:
 
+
+                    Seamless.TryShow("Sending First Join!");
                     ClientMessage response = new ClientMessage(SeamlessVersion.ToString());
                     MyAPIGateway.Multiplayer?.SendMessageToServer(SeamlessClientNetId, MessageUtils.Serialize(response));
                     break;

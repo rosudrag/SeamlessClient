@@ -25,7 +25,7 @@ namespace SeamlessClient.Messages
         [ProtoMember(3)] public long IdentityID;
         [ProtoMember(4)] public ulong SteamID;
         [ProtoMember(5)] public string PluginVersion = "0";
-        [ProtoMember(6)] public string NexusVersion = "0";
+        [ProtoMember(6)] public string NexusVersion;
 
         public ClientMessage(string PluginVersion)
         {
@@ -36,6 +36,8 @@ namespace SeamlessClient.Messages
             this.PluginVersion = PluginVersion;
 
         }
+
+        public ClientMessage() { }
 
         public TransferData GetTransferData()
         {

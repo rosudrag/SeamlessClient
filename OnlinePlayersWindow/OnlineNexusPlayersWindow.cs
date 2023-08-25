@@ -853,7 +853,6 @@ namespace SeamlessClient.OnlinePlayersWindow
         {
             bool result = base.Draw();
 
-            Seamless.TryShow("Draw!");
             if (m_getPingAndRefresh)
             {
                 m_getPingAndRefresh = false;
