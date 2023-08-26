@@ -32,7 +32,7 @@ namespace SeamlessClient.OnlinePlayersWindow
 
         public static void ApplyRecievedPlayers(List<OnlineServer> servers, int CurrentServer)
         {
-            Seamless.TryShow($"Recieved {CurrentServer} - {servers.Count}");
+            //Seamless.TryShow($"Recieved {CurrentServer} - {servers.Count}");
 
 
             allServers.Clear();
