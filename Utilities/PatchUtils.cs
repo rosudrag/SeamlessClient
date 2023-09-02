@@ -78,7 +78,6 @@ namespace SeamlessClient.Components
 
 
             /* Get Methods */
-
             LoadPlayerInternal = GetMethod(typeof(MyPlayerCollection), "LoadPlayerInternal");
             SendPlayerData = GetMethod(ClientType, "SendPlayerData");
 

@@ -15,8 +15,8 @@ namespace SeamlessClient.OnlinePlayersWindow
 
     public class PlayersWindowComponent : ComponentBase
     {
-        public static List<OnlineServer> allServers = new List<OnlineServer>();
-        public static OnlineServer onlineServer;
+        public static List<OnlineClientServer> allServers = new List<OnlineClientServer>();
+        public static OnlineClientServer onlineServer;
 
 
         public override void Patch(Harmony patcher)
@@ -30,14 +30,14 @@ namespace SeamlessClient.OnlinePlayersWindow
             MyPerGameSettings.GUI.PlayersScreen = typeof(OnlineNexusPlayersWindow); 
         }
 
-        public static void ApplyRecievedPlayers(List<OnlineServer> servers, int CurrentServer)
+        public static void ApplyRecievedPlayers(List<OnlineClientServer> servers, int CurrentServer)
         {
             //Seamless.TryShow($"Recieved {CurrentServer} - {servers.Count}");
 
 
             allServers.Clear();
 
-            foreach (OnlineServer server in servers)
+            foreach (OnlineClientServer server in servers)
             {
                 if(server.ServerID == CurrentServer)
                 {

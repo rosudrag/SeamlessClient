@@ -2,14 +2,18 @@
 using Sandbox;
 using Sandbox.Engine.Multiplayer;
 using Sandbox.Engine.Networking;
+using Sandbox.Engine.Utils;
 using Sandbox.Game;
 using Sandbox.Game.Entities;
+using Sandbox.Game.Entities.Character;
 using Sandbox.Game.Gui;
 using Sandbox.Game.GUI;
 using Sandbox.Game.Multiplayer;
+using Sandbox.Game.Replication;
 using Sandbox.Game.SessionComponents;
 using Sandbox.Game.World;
 using Sandbox.Game.World.Generator;
+using Sandbox.Graphics.GUI;
 using Sandbox.ModAPI;
 using SeamlessClient.Components;
 using SeamlessClient.OnlinePlayersWindow;
@@ -17,11 +21,14 @@ using SeamlessClient.Utilities;
 using SpaceEngineers.Game.GUI;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using VRage;
 using VRage.Game;
+using VRage.Game.Entity;
 using VRage.Game.ModAPI;
 using VRage.GameServices;
 using VRage.Network;
@@ -45,6 +52,7 @@ namespace SeamlessClient.ServerSwitching
         private static MethodInfo GpsRegisterChat;
         private static MethodInfo LoadMembersFromWorld;
         private static MethodInfo InitVirtualClients;
+        private static MethodInfo CreateNewPlayerInternal;
 
         private static FieldInfo VirtualClients;
 
@@ -58,6 +66,12 @@ namespace SeamlessClient.ServerSwitching
         private bool needsEntityUnload = true;
 
         public static event EventHandler<JoinResultMsg> OnJoinEvent;
+
+        private MyCharacter originalLocalCharacter;
+        private IMyControllableEntity originalControlledEntity;
+
+        private static bool isSwitch = false;
+        private MyObjectBuilder_Player player { get; set; }
 
 
 
@@ -85,10 +99,35 @@ namespace SeamlessClient.ServerSwitching
             LoadMembersFromWorld = PatchUtils.GetMethod(typeof(MySession), "LoadMembersFromWorld");
             InitVirtualClients = PatchUtils.GetMethod(PatchUtils.VirtualClientsType, "Init");
 
+            CreateNewPlayerInternal = PatchUtils.GetMethod(typeof(MyPlayerCollection), "CreateNewPlayerInternal");
 
 
+            MethodInfo onAllmembersData = PatchUtils.ClientType.GetMethod("OnAllMembersData", BindingFlags.Instance | BindingFlags.NonPublic);
+
+
+            var onClientRemoved = PatchUtils.GetMethod(typeof(MyClientCollection), "RemoveClient");
             var onJoin = PatchUtils.GetMethod(PatchUtils.ClientType, "OnUserJoined");
+            var onDisconnectedClient = PatchUtils.GetMethod(typeof(MyMultiplayerBase), "OnDisconnectedClient");
+            var onClientConnected = PatchUtils.GetMethod(PatchUtils.ClientType, "OnClientConnected");
+            var processAllMembersData = PatchUtils.GetMethod(typeof(MyMultiplayerBase), "ProcessAllMembersData");
+            var RemovePlayer = PatchUtils.GetMethod(typeof(MyPlayerCollection), "RemovePlayerFromDictionary");
+
+
+
+            Seamless.TryShow("Patched!");
+
+
+            patcher.Patch(RemovePlayer, prefix: new HarmonyMethod(Get(typeof(ServerSwitcherComponent), nameof(RemovePlayerFromDict))));
+            patcher.Patch(processAllMembersData, prefix: new HarmonyMethod(Get(typeof(ServerSwitcherComponent), nameof(ProcessAllMembersData))));
+            patcher.Patch(onDisconnectedClient, prefix: new HarmonyMethod(Get(typeof(ServerSwitcherComponent), nameof(OnDisconnectedClient))));
+            patcher.Patch(onClientRemoved, prefix: new HarmonyMethod(Get(typeof(ServerSwitcherComponent), nameof(RemoveClient))));
             patcher.Patch(onJoin, postfix: new HarmonyMethod(Get(typeof(ServerSwitcherComponent), nameof(OnUserJoined))));
+            patcher.Patch(onAllmembersData, prefix: new HarmonyMethod(Get(typeof(ServerSwitcherComponent), nameof(OnAllMembersData))));
+
+
+
+            patcher.Patch(onClientConnected, prefix: new HarmonyMethod(Get(typeof(ServerSwitcherComponent), nameof(OnClientConnected))));
+
 
             base.Patch(patcher);
         }
@@ -102,12 +141,43 @@ namespace SeamlessClient.ServerSwitching
                 Seamless.TryShow("User Joined! Result: " + msg.JoinResult.ToString());
 
                 //Invoke the switch event
-                OnJoinEvent?.Invoke(null, msg);
+                if (isSwitch)
+                    Instance.StartSwitch();
             }
         }
 
+        private static bool ProcessAllMembersData(ref AllMembersDataMsg msg)
+        {
+
+            Sync.Players.ClearIdentities();
+            if (msg.Identities != null)
+            {
+                Sync.Players.LoadIdentities(msg.Identities);
+            }
+
+            Seamless.TryShow($"Clearing Players! \n {Environment.StackTrace.ToString()} ");
+
+            //Sync.Players.ClearPlayers();
+            if (msg.Players != null)
+            {
+                Sync.Players.LoadPlayers(msg.Players);
+            }
+
+            //MySession.Static.Factions.LoadFactions(msg.Factions);
 
 
+
+            return false;
+        }
+
+        private static bool RemovePlayerFromDict(MyPlayer.PlayerId playerId)
+        {
+            //Seamless.TryShow($"Removing player {playerId.SteamId} from dictionariy! \n {Environment.StackTrace.ToString()} - Sender: {MyEventContext.Current.Sender}");
+          
+
+
+            return true;
+        }
 
 
         public override void Initilized()
@@ -116,7 +186,38 @@ namespace SeamlessClient.ServerSwitching
         }
 
 
+        public static bool OnClientConnected(MyPacket packet)
+        {
+            Seamless.TryShow("OnClientConnected");
 
+
+            return true;
+        }
+
+
+
+        public static void RemoveClient(ulong steamId)
+        {
+            if (steamId != Sync.MyId)
+                return;
+             
+            //Seamless.TryShow(Environment.StackTrace.ToString());
+        }
+
+
+        public static void OnAllMembersData(ref AllMembersDataMsg msg)
+        {
+            Seamless.TryShow("Recieved all members data!");
+        }
+
+        public static bool OnDisconnectedClient(ref MyControlDisconnectedMsg data, ulong sender)
+        {
+            Seamless.TryShow($"OnDisconnectedClient {data.Client} - Sender {sender}");
+            if (data.Client == Sync.MyId)
+                return false;
+
+            return true;
+        }
 
 
         public void StartBackendSwitch(MyGameServerItem TargetServer, MyObjectBuilder_World TargetWorld)
@@ -125,20 +226,38 @@ namespace SeamlessClient.ServerSwitching
             this.TargetWorld = TargetWorld;
             OldArmorSkin = MySession.Static.LocalHumanPlayer.BuildArmorSkin;
 
+            Seamless.TryShow($"1 NexusMajor: {Seamless.NexusVersion.Major} - ConrolledEntity {MySession.Static.ControlledEntity == null} - HumanPlayer {MySession.Static.LocalHumanPlayer == null} - Character {MySession.Static.LocalCharacter == null}");
             if (Seamless.NexusVersion.Major >= 2)
                 needsEntityUnload = false;
 
+            isSwitch = true;
+
+            originalLocalCharacter = MySession.Static.LocalCharacter;
+            //originalControlledEntity = MySession.Static.ControlledEntity;
+
+      
+
+
+            player = MySession.Static.LocalHumanPlayer.GetObjectBuilder();
+            player.Connected = false;
 
             AsyncInvoke.InvokeAsync(() => 
-            { 
-                if(needsEntityUnload)
-                    MySession.Static.SetCameraController(MyCameraControllerEnum.SpectatorFixed);
+            {
+                Seamless.TryShow($"Needs entity Unload: {needsEntityUnload}");
 
+                //if (needsEntityUnload)
+                //    MySession.Static.SetCameraController(MyCameraControllerEnum.SpectatorFixed);
 
-                UnloadServer();
-                SetNewMultiplayerClient();
-                
+                try
+                {
 
+                    UnloadServer();
+                    SetNewMultiplayerClient();
+
+                }catch(Exception ex)
+                {
+                    Seamless.TryShow(ex.ToString());
+                }
             });
         }
 
@@ -146,6 +265,7 @@ namespace SeamlessClient.ServerSwitching
         {
             if (MyMultiplayer.Static == null)
                 throw new Exception("MyMultiplayer.Static is null on unloading? dafuq?");
+
 
             UnloadOldEntities();
 
@@ -156,41 +276,99 @@ namespace SeamlessClient.ServerSwitching
 
 
             //Clear all old players and clients.
-            Sync.Clients.Clear();
-            Sync.Players.ClearPlayers();
+            //Sync.Clients.Clear();
+            //Sync.Players.ClearPlayers();
 
             //Unregister Chat
             MyHud.Chat.UnregisterChat(MyMultiplayer.Static);
 
             //Clear all local GPS Points
-            MySession.Static.Gpss.RemovePlayerGpss(MySession.Static.LocalPlayerId);
-            MyHud.GpsMarkers.Clear();
+            MyReplicationClient client = (MyReplicationClient)MyMultiplayer.Static.ReplicationLayer;
+           
+            //client.Disconnect();
+
+
+            MyGameService.Peer2Peer.CloseSession(Sync.ServerId);
+            MyGameService.DisconnectFromServer();
+
+
+            MyControlDisconnectedMsg myControlDisconnectedMsg = default(MyControlDisconnectedMsg);
+            myControlDisconnectedMsg.Client = Sync.MyId;
+
+            typeof(MyMultiplayerBase).GetMethod("SendControlMessage", BindingFlags.Instance | BindingFlags.NonPublic).MakeGenericMethod(typeof(MyControlDisconnectedMsg)).Invoke(MyMultiplayer.Static, new object[] { Sync.ServerId, myControlDisconnectedMsg, true });
 
             //DisconnectReplication
-            MyMultiplayer.Static.ReplicationLayer.Disconnect();
-            MyMultiplayer.Static.ReplicationLayer.Dispose();
-            MyMultiplayer.Static.Dispose();
-            MyMultiplayer.Static = null;
+            //MyMultiplayer.Static.ReplicationLayer.Disconnect();
+            //MyMultiplayer.Static.ReplicationLayer.Dispose();
+            //MyMultiplayer.Static.Dispose();
+            //MyMultiplayer.Static = null;
+
+            MyReplicationClient clienta = (MyReplicationClient)MyMultiplayer.Static.ReplicationLayer;
+            Seamless.TryShow($"2 Streaming: {clienta.HasPendingStreamingReplicables} - LastMessage: {clienta.LastMessageFromServer}");
+            Seamless.TryShow($"2 NexusMajor: {Seamless.NexusVersion.Major} - ConrolledEntity {MySession.Static.ControlledEntity == null} - HumanPlayer {MySession.Static.LocalHumanPlayer == null} - Character {MySession.Static.LocalCharacter == null}");
         }
 
         private void UnloadOldEntities()
         {
+
+
             foreach (var ent in MyEntities.GetEntities())
             {
                 if (ent is MyPlanet)
                     continue;
 
-                //ent.Close();
+                if (ent is MyCharacter)
+                    continue;
+
+
+                ent.Close();
+
+                if (needsEntityUnload)
+                {
+                    ent.Close();
+                }
+                else
+                {
+                    //
+                }
+
+
             }
         }
 
         private void SetNewMultiplayerClient()
         {
-            OnJoinEvent += ServerSwitcherComponent_OnJoinEvent;
+
+            MyReplicationClient clienta = (MyReplicationClient)MyMultiplayer.Static.ReplicationLayer;
+            Seamless.TryShow($"3 Streaming: {clienta.HasPendingStreamingReplicables} - LastMessage: {clienta.LastMessageFromServer}");
+            Seamless.TryShow($"3 NexusMajor: {Seamless.NexusVersion.Major} - ConrolledEntity {MySession.Static.ControlledEntity == null} - HumanPlayer {MySession.Static.LocalHumanPlayer == null} - Character {MySession.Static.LocalCharacter == null}");
+
+           
 
             MySandboxGame.Static.SessionCompatHelper.FixSessionComponentObjectBuilders(TargetWorld.Checkpoint, TargetWorld.Sector);
 
 
+
+
+            PatchUtils.ClientType.GetProperty("Server", BindingFlags.Public | BindingFlags.Instance).SetValue(MyMultiplayer.Static, TargetServer);
+            typeof(MyMultiplayerBase).GetProperty("ServerId", BindingFlags.Public | BindingFlags.Instance).SetValue(MyMultiplayer.Static, TargetServer.SteamID);
+            
+
+            MyGameService.ConnectToServer(TargetServer, delegate (JoinResult joinResult)
+            {
+                MySandboxGame.Static.Invoke(delegate
+                {
+                    Seamless.TryShow("Connected to server!");
+                    PatchUtils.ClientType.GetMethod("OnConnectToServer", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(MyMultiplayer.Static, new object[] { joinResult });
+                }, "OnConnectToServer");
+            });
+
+
+
+            Seamless.TryShow($"4 Streaming: {clienta.HasPendingStreamingReplicables} - LastMessage: {clienta.LastMessageFromServer}");
+            Seamless.TryShow($"4 NexusMajor: {Seamless.NexusVersion.Major} - ConrolledEntity {MySession.Static.ControlledEntity == null} - HumanPlayer {MySession.Static.LocalHumanPlayer == null} - Character {MySession.Static.LocalCharacter == null}");
+
+            return;
             // Create constructors
             var LayerInstance = TransportLayerConstructor.Invoke(new object[] { 2 });
             var SyncInstance = SyncLayerConstructor.Invoke(new object[] { LayerInstance });
@@ -200,27 +378,25 @@ namespace SeamlessClient.ServerSwitching
             MyMultiplayer.Static = UtilExtensions.CastToReflected(instance, PatchUtils.ClientType);
             MyMultiplayer.Static.ExperimentalMode = true;
 
+            
+
             // Set the new SyncLayer to the MySession.Static.SyncLayer
             MySessionLayer.SetValue(MySession.Static, MyMultiplayer.Static.SyncLayer);
 
             Seamless.TryShow("Successfully set MyMultiplayer.Static");
 
 
+
             Sync.Clients.SetLocalSteamId(Sync.MyId, false, MyGameService.UserName);
             Sync.Players.RegisterEvents();
         }
 
-        private void ServerSwitcherComponent_OnJoinEvent(object sender, JoinResultMsg e)
+        private void StartSwitch()
         {
-            OnJoinEvent -= ServerSwitcherComponent_OnJoinEvent;
-
-
-            if (e.JoinResult != JoinResult.OK) 
-            {
-                Seamless.TryShow("Failed to join the target server!");
-                return;
-            }
-
+     
+            MyReplicationClient clienta = (MyReplicationClient)MyMultiplayer.Static.ReplicationLayer;
+            Seamless.TryShow($"5 Streaming: {clienta.HasPendingStreamingReplicables} - LastMessage: {clienta.LastMessageFromServer}");
+            Seamless.TryShow($"5 NexusMajor: {Seamless.NexusVersion.Major} - ConrolledEntity {MySession.Static.ControlledEntity == null} - HumanPlayer {MySession.Static.LocalHumanPlayer == null} - Character {MySession.Static.LocalCharacter == null}");
             Seamless.TryShow("Starting new MP Client!");
 
             /* On Server Successfull Join
@@ -229,24 +405,69 @@ namespace SeamlessClient.ServerSwitching
              */
 
 
+
+            List<ulong> clients = new List<ulong>();    
+            foreach(var client in Sync.Clients.GetClients())
+            {
+                clients.Add(client.SteamUserId);
+                Seamless.TryShow($"{client.SteamUserId} - {Sync.MyId}");
+            }
+
+            foreach(var client in clients)
+            {
+                if (client == TargetServer.SteamID || client == Sync.MyId)
+                    continue;
+
+                Seamless.TryShow($"REMOVING {client}");
+                Sync.Clients.RemoveClient(client);
+            }
+
+            LoadConnectedClients();
+
+
+            
+            //Sync.Clients.SetLocalSteamId(Sync.MyId, !Sync.Clients.HasClient(Sync.MyId), MyGameService.UserName);
+
+
+       
             SetWorldSettings();
             InitComponents();
-            LoadConnectedClients();
             StartEntitySync();
 
 
 
-            MyMultiplayer.Static.OnSessionReady();
+         
 
+            typeof(MySandboxGame).GetField("m_pauseStackCount", BindingFlags.Static | BindingFlags.NonPublic).SetValue(null, 0);
+
+
+            MySandboxGame.IsPaused = false;
             MyHud.Chat.RegisterChat(MyMultiplayer.Static);
-            GpsRegisterChat.Invoke(MySession.Static.Gpss, new object[] { MyMultiplayer.Static });
+            //GpsRegisterChat.Invoke(MySession.Static.Gpss, new object[] { MyMultiplayer.Static });
 
 
             // Allow the game to start proccessing incoming messages in the buffer
             MyMultiplayer.Static.StartProcessingClientMessages();
 
             //Recreate all controls... Will fix weird gui/paint/crap
-            MyGuiScreenHudSpace.Static.RecreateControls(true);
+            MyGuiScreenHudSpace.Static?.RecreateControls(false);
+
+            Seamless.TryShow($"6 NexusMajor: {Seamless.NexusVersion.Major} - ConrolledEntity {MySession.Static.ControlledEntity == null} - HumanPlayer {MySession.Static.LocalHumanPlayer == null} - Character {MySession.Static.LocalCharacter == null}");
+            Seamless.TryShow($"6 Streaming: {clienta.HasPendingStreamingReplicables} - LastMessage: {clienta.LastMessageFromServer}");
+            
+            originalLocalCharacter.Close();
+
+
+            //Send Client Ready
+            ClientReadyDataMsg clientReadyDataMsg = default(ClientReadyDataMsg);
+            clientReadyDataMsg.ForcePlayoutDelayBuffer = MyFakes.ForcePlayoutDelayBuffer;
+            clientReadyDataMsg.UsePlayoutDelayBufferForCharacter = true;
+            clientReadyDataMsg.UsePlayoutDelayBufferForJetpack = true;
+            clientReadyDataMsg.UsePlayoutDelayBufferForGrids = true;
+            ClientReadyDataMsg msg = clientReadyDataMsg;
+            clienta.SendClientReady(ref msg);
+
+            isSwitch = false;
         }
 
 
@@ -284,7 +505,6 @@ namespace SeamlessClient.ServerSwitching
             try
             {
                 MySession.Static.Gpss = new MyGpsCollection();
-                MySession.Static.Gpss.LoadGpss(TargetWorld.Checkpoint);
 
             }
             catch (Exception ex)
@@ -362,13 +582,11 @@ namespace SeamlessClient.ServerSwitching
 
         private void InitComponents()
         {
-            MyModAPIHelper.Initialize();
-            MySession.Static.LoadDataComponents();
-
             //MySession.Static.LoadObjectBuildersComponents(TargetWorld.Checkpoint.SessionComponents);
-            MyModAPIHelper.Initialize();
+            //MyModAPIHelper.Initialize();
             // MySession.Static.LoadObjectBuildersComponents(TargetWorld.Checkpoint.SessionComponents);
 
+            //MySession.Static.LoadDataComponents();
             UpdateWorldGenerator();
             //MethodInfo A = typeof(MySession).GetMethod("LoadGameDefinition", BindingFlags.Instance | BindingFlags.NonPublic);
             // A.Invoke(MySession.Static, new object[] { TargetWorld.Checkpoint });
@@ -409,27 +627,52 @@ namespace SeamlessClient.ServerSwitching
             }
         }
 
-        private void StartEntitySync()
+        private void StartEntitySync() 
         {
             Seamless.TryShow("Requesting Player From Server");
-            Sync.Players.RequestNewPlayer(Sync.MyId, 0, MyGameService.UserName, null, realPlayer: true, initialPlayer: true);
-            if (MySession.Static.ControlledEntity == null && Sync.IsServer && !Sandbox.Engine.Platform.Game.IsDedicated)
+
+            Sync.Players.RequestNewPlayer(Sync.MyId, 0, MyGameService.UserName, null, true, true);
+            if (!Sandbox.Engine.Platform.Game.IsDedicated && MySession.Static.LocalHumanPlayer == null)
             {
-                MyLog.Default.WriteLine("ControlledObject was null, respawning character");
+                Seamless.TryShow("RequestNewPlayer");
+               
+
+            }
+            else if (MySession.Static.ControlledEntity == null && Sync.IsServer && !Sandbox.Engine.Platform.Game.IsDedicated)
+            {
+                Seamless.TryShow("ControlledObject was null, respawning character");
                 //m_cameraAwaitingEntity = true;
                 MyPlayerCollection.RequestLocalRespawn();
             }
+
+            
 
             //Request client state batch
             (MyMultiplayer.Static as MyMultiplayerClientBase).RequestBatchConfirmation();
             MyMultiplayer.Static.PendingReplicablesDone += Static_PendingReplicablesDone;
             //typeof(MyGuiScreenTerminal).GetMethod("CreateTabs")
 
-            MySession.Static.LoadDataComponents();
-            //MyGuiSandbox.LoadData(false);
-            //MyGuiSandbox.AddScreen(MyGuiSandbox.CreateScreen(MyPerGameSettings.GUI.HUDScreen));
+
+
+          
+
+
+
+
+            //MySession.Static.LocalHumanPlayer.Controller.TakeControl(originalControlledEntity);
+
+            MyGuiSandbox.UnloadContent();
+            MyGuiSandbox.LoadContent();
+
+            
+
+            //MyGuiSandbox.CreateScreen(MyPerGameSettings.GUI.HUDScreen);
+
             MyRenderProxy.RebuildCullingStructure();
             MyRenderProxy.CollectGarbage();
+
+
+
 
             Seamless.TryShow("OnlinePlayers: " + MySession.Static.Players.GetOnlinePlayers().Count);
             Seamless.TryShow("Loading Complete!");
@@ -442,16 +685,25 @@ namespace SeamlessClient.ServerSwitching
                 MySandboxGame.AreClipmapsReady = false;
             }
             MyMultiplayer.Static.PendingReplicablesDone -= Static_PendingReplicablesDone;
+
         }
 
         private void LoadConnectedClients()
         {
+
+            //Sync.Clients.SetLocalSteamId(Sync.MyId, !Sync.Clients.HasClient(Sync.MyId), MyGameService.UserName);
+
+
+            Seamless.TryShow($"BEFORE {MySession.Static.LocalHumanPlayer == null} - {MySession.Static.LocalCharacter == null}");
+
+   
+
             LoadMembersFromWorld.Invoke(MySession.Static, new object[] { TargetWorld, MyMultiplayer.Static });
 
 
             //Re-Initilize Virtual clients
-            object VirtualClientsValue = VirtualClients.GetValue(MySession.Static);
-            InitVirtualClients.Invoke(VirtualClientsValue, null);
+            //object VirtualClientsValue = VirtualClients.GetValue(MySession.Static);
+            //InitVirtualClients.Invoke(VirtualClientsValue, null);
 
 
 
@@ -461,10 +713,30 @@ namespace SeamlessClient.ServerSwitching
                 Seamless.TryShow("SavingPlayerID is null! Creating Default!");
                 savingPlayerId = new MyPlayer.PlayerId(Sync.MyId);
             }
+  
+
+
+            player.IsWildlifeAgent = true;
+            CreateNewPlayerInternal.Invoke(MySession.Static.Players, new object[] { Sync.Clients.LocalClient, savingPlayerId.Value, player });
+            typeof(MyPlayerCollection).GetMethod("LoadPlayerInternal", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(MySession.Static.Players, new object[] { savingPlayerId.Value, player, false  });
+
+
+
             Seamless.TryShow("Saving PlayerID: " + savingPlayerId.ToString());
 
-            Sync.Players.LoadConnectedPlayers(TargetWorld.Checkpoint, savingPlayerId);
-            Sync.Players.LoadControlledEntities(TargetWorld.Checkpoint.ControlledEntities, TargetWorld.Checkpoint.ControlledObject, savingPlayerId);
+            Seamless.TryShow($"AFTER {MySession.Static.LocalHumanPlayer == null} - {MySession.Static.LocalCharacter == null}");
+            // MySession.Static.Players.OnInitialPlayerCreated(Sync.MyId, 0, false, playerDataMsg.PlayerBuilder);
+
+
+            // if (TargetWorld.Checkpoint.ConnectedPlayers.Dictionary.Any(x => x.Key.ClientId == savingPlayerId.Value.SteamId))
+            //     Seamless.TryShow("Checkpoint already has player!");
+
+
+
+            //Sync.Players.LoadConnectedPlayers(TargetWorld.Checkpoint, savingPlayerId);
+            //Sync.Players.LoadControlledEntities(TargetWorld.Checkpoint.ControlledEntities, TargetWorld.Checkpoint.ControlledObject, savingPlayerId);
+
+
         }
     }
 }

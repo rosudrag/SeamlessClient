@@ -36,6 +36,13 @@ namespace SeamlessClient.Messages
             this.PluginVersion = PluginVersion;
 
         }
+        public ClientMessage(ClientMessageType messageType, string NexusVersion)
+        {
+            this.MessageType = messageType;
+            this.NexusVersion = NexusVersion;
+        }
+
+
 
         public ClientMessage() { }
 
@@ -51,6 +58,11 @@ namespace SeamlessClient.Messages
 
             var msg = MessageUtils.Deserialize<OnlinePlayerData>(MessageData);
             return msg;
+        }
+
+        public void SerializeData<T>(T Data)
+        {
+            MessageData = MessageUtils.Serialize(Data);
         }
 
     }

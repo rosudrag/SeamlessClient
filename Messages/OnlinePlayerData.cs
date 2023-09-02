@@ -10,13 +10,13 @@ namespace SeamlessClient.Messages
     [ProtoContract]
     public class OnlinePlayerData
     {
-        [ProtoMember(10)] public List<OnlineServer> OnlineServers = new List<OnlineServer>();
+        [ProtoMember(10)] public List<OnlineClientServer> OnlineServers = new List<OnlineClientServer>();
 
         [ProtoMember(12)] public int currentServerID;
     }
 
     [ProtoContract]
-    public class OnlineServer
+    public class OnlineClientServer
     {
         [ProtoMember(2)] public List<OnlinePlayer> Players = new List<OnlinePlayer>();
 
@@ -26,7 +26,7 @@ namespace SeamlessClient.Messages
 
         [ProtoMember(11)] public string ServerName;
 
-        public OnlineServer()
+        public OnlineClientServer()
         {
         }
     }

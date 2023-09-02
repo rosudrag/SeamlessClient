@@ -23,13 +23,13 @@ namespace SeamlessClient
 {
     public class Seamless : IPlugin
     {
-        public static Version SeamlessVersion;
+        public static Version SeamlessVersion => typeof(Seamless).Assembly.GetName().Version;
         public static Version NexusVersion = new Version(1, 0, 0);
         private static Harmony SeamlessPatcher;
-        public const ushort SeamlessClientNetId = 2936;
+        public static ushort SeamlessClientNetId = 2936;
 
         private List<ComponentBase> allComps = new List<ComponentBase>();
-        private Assembly thisAssembly;
+        private Assembly thisAssembly => typeof(Seamless).Assembly;
         private bool Initilized = false;
         public static bool isSeamlessServer = false;
 
@@ -39,8 +39,6 @@ namespace SeamlessClient
 
         public void Init(object gameInstance)
         {
-            thisAssembly = typeof(Seamless).Assembly;
-            SeamlessVersion = thisAssembly.GetName().Version;
             TryShow($"Running Seamless Client Plugin v[{SeamlessVersion}]");
             SeamlessPatcher = new Harmony("SeamlessClientPatcher");
             GetComponents();
@@ -112,17 +110,21 @@ namespace SeamlessClient
         private static void MessageHandler(ushort packetID, byte[] data, ulong sender, bool fromServer)
         {
             //Ignore anything except dedicated server
-
+            Seamless.TryShow("1!");
             if (!fromServer || sender == 0)
                 return;
 
+            Seamless.TryShow("2!");
             ClientMessage msg = MessageUtils.Deserialize<ClientMessage>(data);
             if (msg == null)
                 return;
 
+            Seamless.TryShow("3!");
             //Get Nexus Version
             if (!string.IsNullOrEmpty(msg.NexusVersion))
                 NexusVersion = Version.Parse(msg.NexusVersion);
+
+            Seamless.TryShow("4!");
 
             switch (msg.MessageType)
             {
