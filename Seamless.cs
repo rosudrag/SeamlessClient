@@ -110,21 +110,17 @@ namespace SeamlessClient
         private static void MessageHandler(ushort packetID, byte[] data, ulong sender, bool fromServer)
         {
             //Ignore anything except dedicated server
-            Seamless.TryShow("1!");
             if (!fromServer || sender == 0)
                 return;
 
-            Seamless.TryShow("2!");
             ClientMessage msg = MessageUtils.Deserialize<ClientMessage>(data);
             if (msg == null)
                 return;
 
-            Seamless.TryShow("3!");
             //Get Nexus Version
             if (!string.IsNullOrEmpty(msg.NexusVersion))
                 NexusVersion = Version.Parse(msg.NexusVersion);
 
-            Seamless.TryShow("4!");
 
             switch (msg.MessageType)
             {
