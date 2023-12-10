@@ -164,8 +164,6 @@ namespace SeamlessClient.ServerSwitching
 
             var keys = m_memberData.Keys.Cast<ulong>();
 
-
-
             for(int i = clients.Count - 1; i >= 0; i-- )
             {
                 Seamless.TryShow($"Client {clients[i].SteamId}");
