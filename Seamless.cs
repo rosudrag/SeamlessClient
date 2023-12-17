@@ -33,7 +33,7 @@ namespace SeamlessClient
         private bool Initilized = false;
         public static bool isSeamlessServer = false;
 
-        public static bool isDebug = true;
+        public static bool isDebug = false;
 
 
 
