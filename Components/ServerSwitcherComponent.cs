@@ -8,6 +8,7 @@ using Sandbox.Game.Entities;
 using Sandbox.Game.Entities.Character;
 using Sandbox.Game.Gui;
 using Sandbox.Game.GUI;
+using Sandbox.Game.GUI.HudViewers;
 using Sandbox.Game.Multiplayer;
 using Sandbox.Game.Replication;
 using Sandbox.Game.SessionComponents;
@@ -375,6 +376,10 @@ namespace SeamlessClient.ServerSwitching
 
             ResetReplicationTime(false);
 
+            //Remove old signals
+            MyHud.GpsMarkers.Clear();
+
+
             Seamless.TryShow($"2 Streaming: {clienta.HasPendingStreamingReplicables} - LastMessage: {clienta.LastMessageFromServer}");
             Seamless.TryShow($"2 NexusMajor: {Seamless.NexusVersion.Major} - ConrolledEntity {MySession.Static.ControlledEntity == null} - HumanPlayer {MySession.Static.LocalHumanPlayer == null} - Character {MySession.Static.LocalCharacter == null}");
         }
@@ -504,11 +509,17 @@ namespace SeamlessClient.ServerSwitching
        
             SetWorldSettings();
             InitComponents();
+
+            // Allow the game to start proccessing incoming messages in the buffer
+            MyMultiplayer.Static.StartProcessingClientMessages();
+
             StartEntitySync();
 
+            //MyGuiSandbox.RemoveScreen(MyGuiScreenHudSpace.Static);
 
 
-         
+
+
 
             typeof(MySandboxGame).GetField("m_pauseStackCount", BindingFlags.Static | BindingFlags.NonPublic).SetValue(null, 0);
 
@@ -517,19 +528,22 @@ namespace SeamlessClient.ServerSwitching
             MyHud.Chat.RegisterChat(MyMultiplayer.Static);
             //GpsRegisterChat.Invoke(MySession.Static.Gpss, new object[] { MyMultiplayer.Static });
 
+
+
             //Recreate all controls... Will fix weird gui/paint/crap
-            MyGuiScreenHudSpace.Static?.RecreateControls(false);
+            //MyGuiScreenHudSpace.Static?.RecreateControls(true);
+
+           
+
 
             Seamless.TryShow($"6 NexusMajor: {Seamless.NexusVersion.Major} - ConrolledEntity {MySession.Static.ControlledEntity == null} - HumanPlayer {MySession.Static.LocalHumanPlayer == null} - Character {MySession.Static.LocalCharacter == null}");
             Seamless.TryShow($"6 Streaming: {clienta.HasPendingStreamingReplicables} - LastMessage: {clienta.LastMessageFromServer}");
             
             originalLocalCharacter?.Close();
             ResetReplicationTime(true);
+            
+            
 
-
-
-            // Allow the game to start proccessing incoming messages in the buffer
-            MyMultiplayer.Static.StartProcessingClientMessages();
 
             //Send Client Ready
             ClientReadyDataMsg clientReadyDataMsg = default(ClientReadyDataMsg);
@@ -540,7 +554,15 @@ namespace SeamlessClient.ServerSwitching
             ClientReadyDataMsg msg = clientReadyDataMsg;
             clienta.SendClientReady(ref msg);
 
+            Seamless.SendSeamlessVersion();
+
+            FieldInfo hudPoints = typeof(MyHudMarkerRender).GetField("m_pointsOfInterest", BindingFlags.Instance | BindingFlags.NonPublic);
+            IList points = (IList)hudPoints.GetValue(MyGuiScreenHudSpace.Static.MarkerRender);
+
+
+            //Sync.Players.RequestNewPlayer(Sync.MyId, 0, MyGameService.UserName, null, true, true);
             PauseClient.Invoke(MyMultiplayer.Static, new object[] { false });
+            
 
             isSwitch = false;
         }
@@ -588,7 +610,7 @@ namespace SeamlessClient.ServerSwitching
             }
 
 
-            MyRenderProxy.RebuildCullingStructure();
+            //MyRenderProxy.RebuildCullingStructure();
             //MySession.Static.Toolbars.LoadToolbars(checkpoint);
 
             Sync.Players.RespawnComponent.InitFromCheckpoint(TargetWorld.Checkpoint);
@@ -659,8 +681,6 @@ namespace SeamlessClient.ServerSwitching
         {
             UpdateWorldGenerator();
         }
-
-
         private void UpdateWorldGenerator()
         {
             //This will re-init the MyProceduralWorldGenerator. (Not doing this will result in asteroids not rendering in properly)
@@ -787,5 +807,10 @@ namespace SeamlessClient.ServerSwitching
             Seamless.TryShow("Saving PlayerID: " + savingPlayerId.ToString());
             Seamless.TryShow($"AFTER {MySession.Static.LocalHumanPlayer == null} - {MySession.Static.LocalCharacter == null}");
         }
+
+
+
+
+
     }
 }

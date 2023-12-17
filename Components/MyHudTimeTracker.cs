@@ -16,9 +16,12 @@ namespace SeamlessClient.Components
 {
     public class MyHudTimeTracker : ComponentBase
     {
-
         public override void Patch(Harmony patcher)
         {
+
+            return;
+
+
             var AppendDistance = PatchUtils.GetMethod(typeof(MyHudMarkerRender), "AppendDistance");
 
             patcher.Patch(AppendDistance, postfix: new HarmonyMethod(Get(typeof(MyHudTimeTracker), nameof(ApplyTimeToTarget))));
@@ -58,9 +61,6 @@ namespace SeamlessClient.Components
             stringBuilder.AppendLine($" [T-{FormatDuration(t)}]");
         }
 
-
-
-
         static string FormatDuration(double durationInSeconds)
         {
             if (durationInSeconds < 60)
@@ -98,9 +98,5 @@ namespace SeamlessClient.Components
 
             return distance / velocity;
         }
-
-
-
-
     }
 }

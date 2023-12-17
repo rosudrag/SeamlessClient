@@ -25,9 +25,16 @@ namespace SeamlessClient.OnlinePlayersWindow
         }
 
 
-        public override void Initilized()
+        public override void Update()
         {
-            MyPerGameSettings.GUI.PlayersScreen = typeof(OnlineNexusPlayersWindow); 
+            if (!Seamless.isSeamlessServer)
+            {
+                MyPerGameSettings.GUI.PlayersScreen = typeof(MyGuiScreenPlayers);
+            }
+            else
+            {
+                MyPerGameSettings.GUI.PlayersScreen = typeof(OnlineNexusPlayersWindow);
+            }
         }
 
         public static void ApplyRecievedPlayers(List<OnlineClientServer> servers, int CurrentServer)

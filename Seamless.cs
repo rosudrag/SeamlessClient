@@ -1,5 +1,6 @@
 ﻿using HarmonyLib;
 using NLog.Fluent;
+using Sandbox.Game.Localization;
 using Sandbox.Game.World;
 using Sandbox.ModAPI;
 using SeamlessClient.Messages;
@@ -31,10 +32,10 @@ namespace SeamlessClient
         private List<ComponentBase> allComps = new List<ComponentBase>();
         private Assembly thisAssembly => typeof(Seamless).Assembly;
         private bool Initilized = false;
-        public static bool isSeamlessServer = false;
-
+        public static bool isSeamlessServer { get; private set; } = false;
         public static bool isDebug = false;
 
+        
 
 
         public void Init(object gameInstance)
@@ -121,13 +122,12 @@ namespace SeamlessClient
             if (!string.IsNullOrEmpty(msg.NexusVersion))
                 NexusVersion = Version.Parse(msg.NexusVersion);
 
-
+            isSeamlessServer = true;
             switch (msg.MessageType)
             {
                 case ClientMessageType.FirstJoin:
                     Seamless.TryShow("Sending First Join!");
-                    ClientMessage response = new ClientMessage(SeamlessVersion.ToString());
-                    MyAPIGateway.Multiplayer?.SendMessageToServer(SeamlessClientNetId, MessageUtils.Serialize(response));
+                    SendSeamlessVersion();
                     break;
 
                 case ClientMessageType.TransferServer:
@@ -142,19 +142,32 @@ namespace SeamlessClient
             }
         }
 
+        public static void SendSeamlessVersion()
+        {
+          
+
+            ClientMessage response = new ClientMessage(SeamlessVersion.ToString());
+            MyAPIGateway.Multiplayer?.SendMessageToServer(SeamlessClientNetId, MessageUtils.Serialize(response));
+            Seamless.TryShow("Sending Seamless request...");
+        }
+
 
 
         public void Dispose()
         {
-            
+           
         }
 
 
 
         public void Update()
         {
-            if (MyAPIGateway.Multiplayer == null) 
+            if (MyAPIGateway.Multiplayer == null)
+            {
+                isSeamlessServer = false;
+                Initilized = false;
                 return;
+            }
 
             if (!Initilized)
             {
@@ -163,6 +176,8 @@ namespace SeamlessClient
 
                 Initilized = true;
             }
+
+            allComps.ForEach(x => x.Update());
         }
 
 
