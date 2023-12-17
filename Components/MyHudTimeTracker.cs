@@ -69,12 +69,16 @@ namespace SeamlessClient.Components
             }
             else
             {
-                double minutes = Math.Round(durationInSeconds / 60, 0);
-                double seconds = Math.Round(durationInSeconds % 60, 1);
 
-                if (seconds > 0)
+
+
+                int minutes = (int)(durationInSeconds / 60);
+                int remainingSeconds = (int)(durationInSeconds % 60);
+
+
+                if (remainingSeconds > 0)
                 {
-                    return $"{minutes}m {seconds}s";
+                    return $"{minutes}m {remainingSeconds}s";
                 }
                 else
                 {
