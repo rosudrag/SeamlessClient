@@ -510,9 +510,6 @@ namespace SeamlessClient.ServerSwitching
             SetWorldSettings();
             InitComponents();
 
-            // Allow the game to start proccessing incoming messages in the buffer
-            MyMultiplayer.Static.StartProcessingClientMessages();
-
             StartEntitySync();
 
             //MyGuiSandbox.RemoveScreen(MyGuiScreenHudSpace.Static);
@@ -541,8 +538,9 @@ namespace SeamlessClient.ServerSwitching
             
             originalLocalCharacter?.Close();
             ResetReplicationTime(true);
-            
-            
+
+            // Allow the game to start proccessing incoming messages in the buffer
+            MyMultiplayer.Static.StartProcessingClientMessages();
 
 
             //Send Client Ready

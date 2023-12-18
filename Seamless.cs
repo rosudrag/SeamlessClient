@@ -33,7 +33,7 @@ namespace SeamlessClient
         private Assembly thisAssembly => typeof(Seamless).Assembly;
         private bool Initilized = false;
         public static bool isSeamlessServer { get; private set; } = false;
-        public static bool isDebug = false;
+        public static bool isDebug = true;
 
         
 
