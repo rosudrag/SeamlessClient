@@ -1,6 +1,7 @@
 ﻿using HarmonyLib;
 using Sandbox.Game;
 using Sandbox.Game.Gui;
+using Sandbox.Game.Multiplayer;
 using Sandbox.Game.World;
 using SeamlessClient.Messages;
 using SeamlessClient.Utilities;
@@ -27,7 +28,7 @@ namespace SeamlessClient.OnlinePlayersWindow
 
         public override void Update()
         {
-            if (!Seamless.isSeamlessServer)
+            if (Sync.IsServer)
             {
                 MyPerGameSettings.GUI.PlayersScreen = typeof(MyGuiScreenPlayers);
             }

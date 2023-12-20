@@ -175,7 +175,7 @@ namespace SeamlessClient.OnlinePlayersWindow
         [HarmonyPatch(typeof(MyGuiScreenPlayers), "SendPingsAndRefresh")]
         private static void SendPingsAndRefresh1(SerializableDictionary<ulong, short> dictionary)
         {
-            Seamless.TryShow("Hello World!");
+            //Seamless.TryShow("Hello World!");
 
             if (Sandbox.Engine.Platform.Game.IsDedicated)
             {

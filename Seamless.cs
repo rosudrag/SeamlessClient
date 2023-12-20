@@ -34,7 +34,7 @@ namespace SeamlessClient
         private Assembly thisAssembly => typeof(Seamless).Assembly;
         private bool Initilized = false;
         public static bool isSeamlessServer { get; private set; } = false;
-        public static bool isDebug = true;
+        public static bool isDebug = false;
 
         
 
@@ -165,8 +165,6 @@ namespace SeamlessClient
 
         public static void SendSeamlessVersion()
         {
-          
-
             ClientMessage response = new ClientMessage(SeamlessVersion.ToString());
             MyAPIGateway.Multiplayer?.SendMessageToServer(SeamlessClientNetId, MessageUtils.Serialize(response));
             Seamless.TryShow("Sending Seamless request...");
@@ -178,15 +176,13 @@ namespace SeamlessClient
         {
            
         }
-
-
-
         public void Update()
         {
+            allComps.ForEach(x => x.Update());
+
             if (MyAPIGateway.Multiplayer == null)
             {
                 isSeamlessServer = false;
-                Initilized = false;
                 return;
             }
 
@@ -198,7 +194,7 @@ namespace SeamlessClient
                 Initilized = true;
             }
 
-            allComps.ForEach(x => x.Update());
+            
         }
 
 
