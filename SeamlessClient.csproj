@@ -99,6 +99,7 @@
     <Compile Include="Components\LoadingScreenComponent.cs" />
     <Compile Include="Components\MyGUIScreenMedicalsPatch.cs" />
     <Compile Include="Components\MyHudTimeTracker.cs" />
+    <Compile Include="GUI\Screens\GUILoadingScreen.cs" />
     <Compile Include="Messages\OnlinePlayerData.cs" />
     <Compile Include="Utilities\UtilExtensions.cs" />
     <Compile Include="Utilities\PatchUtils.cs" />

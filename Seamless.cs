@@ -33,7 +33,7 @@ namespace SeamlessClient
         private Assembly thisAssembly => typeof(Seamless).Assembly;
         private bool Initilized = false;
         public static bool isSeamlessServer { get; private set; } = false;
-        public static bool isDebug = true;
+        public static bool isDebug = false;
 
         
 
@@ -155,11 +155,10 @@ namespace SeamlessClient
         {
            
         }
-
-
-
         public void Update()
         {
+            allComps.ForEach(x => x.Update());
+
             if (MyAPIGateway.Multiplayer == null)
             {
                 isSeamlessServer = false;
@@ -174,7 +173,7 @@ namespace SeamlessClient
                 Initilized = true;
             }
 
-            allComps.ForEach(x => x.Update());
+            
         }
 
 

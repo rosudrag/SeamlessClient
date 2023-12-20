@@ -18,171 +18,137 @@ using Sandbox.Engine.Networking;
 using VRage;
 using VRage.GameServices;
 using VRageRender;
+using Sandbox.Game.Multiplayer;
+using Sandbox.Game;
+using SeamlessClient.GUI.Screens;
+using Sandbox.Engine.Analytics;
+using System.IO;
+using VRage.FileSystem;
 
 namespace SeamlessClient.Components
 {
     public class LoadingScreenComponent : ComponentBase
     {
         private static MethodInfo LoadMultiplayer;
-
         private static string _loadingScreenTexture = null;
-        private static string _serverName;
+        private bool ScannedMods = false;
 
+        public static string JoiningServerName { get; private set; }
+        public static List<string> CustomLoadingTextures { get; private set; } = new List<string>();    
+
+        static Random random = new Random(Guid.NewGuid().GetHashCode());
+        delegate void MyDelegate(string text);
+
+        private static List<MyObjectBuilder_Checkpoint.ModItem> mods; 
 
         public override void Patch(Harmony patcher)
         {
+            var startLoading = PatchUtils.GetMethod(typeof(MySessionLoader), "StartLoading");
             var loadingAction = PatchUtils.GetMethod(typeof(MySessionLoader), "LoadMultiplayerSession");
-            var loadingScreenDraw = PatchUtils.GetMethod(typeof(MyGuiScreenLoading), "DrawInternal");
-            LoadMultiplayer = PatchUtils.GetMethod(typeof(MySession), "LoadMultiplayer");
 
+            patcher.Patch(startLoading, prefix: new HarmonyMethod(Get(typeof(LoadingScreenComponent), nameof(StartLoading))));
+            patcher.Patch(loadingAction, postfix: new HarmonyMethod(Get(typeof(LoadingScreenComponent), nameof(LoadMultiplayerSession))));
+        }
 
-            patcher.Patch(loadingAction, prefix: new HarmonyMethod(Get(typeof(LoadingScreenComponent), nameof(LoadMultiplayerSession))));
-            patcher.Patch(loadingScreenDraw, prefix: new HarmonyMethod(Get(typeof(LoadingScreenComponent), nameof(DrawInternal_PRE))));
-            patcher.Patch(loadingScreenDraw, postfix: new HarmonyMethod(Get(typeof(LoadingScreenComponent), nameof(DrawInternal_POST))));
-
-
-            base.Patch(patcher);
+        public static string getRandomLoadingScreen()
+        {
+            int randomIndex = random.Next(CustomLoadingTextures.Count);
+            return CustomLoadingTextures[randomIndex];
         }
 
 
 
-        private static bool LoadMultiplayerSession(MyObjectBuilder_World world, MyMultiplayerBase multiplayerSession)
+        private static void LoadMultiplayerSession(MyObjectBuilder_World world, MyMultiplayerBase multiplayerSession)
         {
-            MyLog.Default.WriteLine("LoadSession() - Start");
-            if (!MyWorkshop.CheckLocalModsAllowed(world.Checkpoint.Mods, false))
-            {
-                MyGuiSandbox.AddScreen(MyGuiSandbox.CreateMessageBox(MyMessageBoxStyleEnum.Error, MyMessageBoxButtonsType.OK, messageCaption: MyTexts.Get(MyCommonTexts.MessageBoxCaptionError), messageText: MyTexts.Get(MyCommonTexts.DialogTextLocalModsDisabledInMultiplayer)));
-                MyLog.Default.WriteLine("LoadSession() - End");
-                return false;
-            }
+            //This is the main enty point for the start loading system...
+            if (Sync.IsServer)
+                return;
 
 
-            MyWorkshop.DownloadModsAsync(world.Checkpoint.Mods, delegate (MyGameServiceCallResult result)
-            {
-                switch (result)
-                {
-                    case MyGameServiceCallResult.NotEnoughSpace:
-                        MyGuiSandbox.AddScreen(MyGuiSandbox.CreateMessageBox(MyMessageBoxStyleEnum.Error, MyMessageBoxButtonsType.OK, messageCaption: MyTexts.Get(MyCommonTexts.MessageBoxCaptionError), messageText: MyTexts.Get(MyCommonTexts.DialogTextDownloadModsFailed_NotEnoughSpace), okButtonText: null, cancelButtonText: null, yesButtonText: null, noButtonText: null, callback: delegate
-                        {
-                            MySessionLoader.UnloadAndExitToMenu();
-                        }));
-                        break;
-                    case MyGameServiceCallResult.OK:
-                        MyScreenManager.CloseAllScreensNowExcept(null);
-                        MyGuiSandbox.Update(16);
+            JoiningServerName = multiplayerSession.HostName;
+            mods = world.Checkpoint.Mods;
+            //GetCustomLoadingScreenPath(world.Checkpoint.Mods);
+            //Search for any custom loading screens
 
-                        if (MySession.Static != null)
-                        {
-                            MySession.Static.Unload();
-                            MySession.Static = null;
-                        }
-
-                        MySessionLoader.StartLoading(delegate
-                        {
-                            LoadMultiplayer.Invoke(null, new object[] { world, multiplayerSession });
-                        });
-
-                        break;
-
-                    default:
-                        multiplayerSession.Dispose();
-                        MySessionLoader.UnloadAndExitToMenu();
-                        if (MyGameService.IsOnline)
-                        {
-                            MyGuiSandbox.AddScreen(MyGuiSandbox.CreateMessageBox(MyMessageBoxStyleEnum.Error, MyMessageBoxButtonsType.OK, messageCaption: MyTexts.Get(MyCommonTexts.MessageBoxCaptionError), messageText: MyTexts.Get(MyCommonTexts.DialogTextDownloadModsFailed)));
-                        }
-                        else
-                        {
-                            MyGuiSandbox.AddScreen(MyGuiSandbox.CreateMessageBox(MyMessageBoxStyleEnum.Error, MyMessageBoxButtonsType.OK, messageCaption: MyTexts.Get(MyCommonTexts.MessageBoxCaptionError), messageText: new StringBuilder(string.Format(MyTexts.GetString(MyCommonTexts.DialogTextDownloadModsFailedSteamOffline), MySession.GameServiceDisplayName))));
-                        }
-                        break;
-                }
-                MyLog.Default.WriteLine("LoadSession() - End");
-            }, delegate
-            {
-                multiplayerSession.Dispose();
-                MySessionLoader.UnloadAndExitToMenu();
-            });
-
-            return false;
+            return;
         }
 
-        private void OnFinished(MyGameServiceCallResult result)
+        private static bool StartLoading(Action loadingAction, Action loadingActionXMLAllowed = null, string customLoadingBackground = null, string customLoadingtext = null)
         {
-
-        }
-
-
-        private static bool DrawInternal_PRE(MyGuiScreenLoading __instance)
-        {
-            //If we dont have a custom loading screen texture, do not do the special crap below
+            /* Control what screen is being loaded */
 
 
-
-
-
-            if (string.IsNullOrEmpty(_loadingScreenTexture))
+            //If we are loading into a single player enviroment, skip override
+            if (Sync.IsServer)
                 return true;
 
 
-            const string mFont = "LoadingScreen";
-            var mTransitionAlpha = (float)typeof(MyGuiScreenBase).GetField("m_transitionAlpha", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(__instance);
 
-            var color = new Color(255, 255, 255, 250);
-            color.A = (byte)(color.A * mTransitionAlpha);
-            var fullscreenRectangle = MyGuiManager.GetFullscreenRectangle();
-            MyGuiManager.DrawSpriteBatch("Textures\\GUI\\Blank.dds", fullscreenRectangle, Color.Black, false, true);
-            Rectangle outRect;
-            MyGuiManager.GetSafeHeightFullScreenPictureSize(MyGuiConstants.LOADING_BACKGROUND_TEXTURE_REAL_SIZE,
-                out outRect);
-            MyGuiManager.DrawSpriteBatch(_loadingScreenTexture, outRect,
-                new Color(new Vector4(1f, 1f, 1f, mTransitionAlpha)), true, true);
-            MyGuiManager.DrawSpriteBatch("Textures\\Gui\\Screens\\screen_background_fade.dds", outRect,
-                new Color(new Vector4(1f, 1f, 1f, mTransitionAlpha)), true, true);
-
-            //MyGuiSandbox.DrawGameLogoHandler(m_transitionAlpha, MyGuiManager.ComputeFullscreenGuiCoordinate(MyGuiDrawAlignEnum.HORISONTAL_LEFT_AND_VERTICAL_TOP, 44, 68));
-
-            var loadScreen = $"Loading into {_serverName}! Please wait!";
-
-
-            MyGuiManager.DrawString(mFont, loadScreen, new Vector2(0.5f, 0.95f),
-                MyGuiSandbox.GetDefaultTextScaleWithLanguage() * 1.1f,
-                new Color(MyGuiConstants.LOADING_PLEASE_WAIT_COLOR * mTransitionAlpha),
-                MyGuiDrawAlignEnum.HORISONTAL_CENTER_AND_VERTICAL_BOTTOM);
-
-
-
-
-
-
-
-
-
-            /*
-            if (string.IsNullOrEmpty(m_customTextFromConstructor))
+            GetCustomLoadingScreenPath();
+            if (MySpaceAnalytics.Instance != null)
             {
-                string font = m_font;
-                Vector2 positionAbsoluteBottomLeft = m_multiTextControl.GetPositionAbsoluteBottomLeft();
-                Vector2 textSize = m_multiTextControl.TextSize;
-                Vector2 normalizedCoord = positionAbsoluteBottomLeft + new Vector2((m_multiTextControl.Size.X - textSize.X) * 0.5f + 0.025f, 0.025f);
-                MyGuiManager.DrawString(font, m_authorWithDash.ToString(), normalizedCoord, MyGuiSandbox.GetDefaultTextScaleWithLanguage());
+                MySpaceAnalytics.Instance.StoreWorldLoadingStartTime();
             }
-            */
 
 
-            //m_multiTextControl.Draw(1f, 1f);
+            MyGuiScreenGamePlay newGameplayScreen = new MyGuiScreenGamePlay();
+            MyGuiScreenGamePlay myGuiScreenGamePlay = newGameplayScreen;
+            myGuiScreenGamePlay.OnLoadingAction = (Action)Delegate.Combine(myGuiScreenGamePlay.OnLoadingAction, loadingAction);
+
+            //Use custom loading screen
+            GUILoadingScreen myGuiScreenLoading = new GUILoadingScreen(newGameplayScreen, MyGuiScreenGamePlay.Static, customLoadingBackground, customLoadingtext);
+           
+            myGuiScreenLoading.OnScreenLoadingFinished += delegate
+            {
+                if (MySession.Static != null)
+                {
+                    MyGuiSandbox.AddScreen(MyGuiSandbox.CreateScreen(MyPerGameSettings.GUI.HUDScreen));
+                    newGameplayScreen.LoadingDone = true;
+                }
+            };
+
+            myGuiScreenLoading.OnLoadingXMLAllowed = loadingActionXMLAllowed;
+            MyGuiSandbox.AddScreen(myGuiScreenLoading);
 
             return false;
         }
 
-        private static void DrawInternal_POST(MyGuiScreenLoading __instance)
+
+
+
+        public static void GetCustomLoadingScreenPath()
         {
-            const string mFont = "LoadingScreen";
-            var mTransitionAlpha = (float)typeof(MyGuiScreenBase).GetField("m_transitionAlpha", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(__instance);
-            MyGuiManager.DrawString(mFont, "Nexus & SeamlessClient Made by: Casimir", new Vector2(0.95f, 0.95f),
-                MyGuiSandbox.GetDefaultTextScaleWithLanguage() * 1.1f,
-                new Color(MyGuiConstants.LOADING_PLEASE_WAIT_COLOR * mTransitionAlpha),
-                MyGuiDrawAlignEnum.HORISONTAL_CENTER_AND_VERTICAL_BOTTOM);
+            try
+            {
+                //var Mods = world.Checkpoint.Mods;
+                var Mods = mods;
+
+                Seamless.TryShow("Server Mods: " + Mods);
+                foreach (var mod in Mods)
+                {
+                    var searchDir = mod.GetPath();
+
+                    if (!Directory.Exists(searchDir))
+                        continue;
+
+                    var files = Directory.GetFiles(searchDir, "CustomLoadingBackground*.dds", SearchOption.TopDirectoryOnly);
+
+                    foreach (var file in files)
+                    {
+                        // Adds all files containing CustomLoadingBackground to a list for later randomisation
+                        Seamless.TryShow(mod.FriendlyName + " contains a custom loading background!");
+                        CustomLoadingTextures.Add(file);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Seamless.TryShow(ex.ToString());
+            }
+
+            Seamless.TryShow("");
+            return;
         }
+
     }
 }

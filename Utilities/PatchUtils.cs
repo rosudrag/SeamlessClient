@@ -45,6 +45,19 @@ namespace SeamlessClient.Components
         public static readonly Type MySlimBlockType =
             Type.GetType("Sandbox.Game.Entities.Cube.MySlimBlock, Sandbox.Game");
 
+        public static readonly Type MyLoadingScreenQuote =
+            Type.GetType("Sandbox.Game.Screens.Helpers.MyLoadingScreenQuote, Sandbox.Game");
+
+        public static readonly Type MyLoadingScreenHint =
+    Type.GetType("Sandbox.Game.Screens.Helpers.MyLoadingScreenHint, Sandbox.Game");
+
+        public static readonly Type MyLoadingPerformance =
+Type.GetType("Sandbox.Engine.Utils.MyLoadingPerformance, Sandbox.Game");
+
+        public static readonly Type MyLoadingScreenText =
+Type.GetType("Sandbox.Game.Screens.Helpers.MyLoadingScreenText, Sandbox.Game");
+
+
         /* Harmony Patcher */
         private static readonly Harmony Patcher = new Harmony("SeamlessClientPatcher");
 
