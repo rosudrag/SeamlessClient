@@ -805,10 +805,5 @@ namespace SeamlessClient.ServerSwitching
             Seamless.TryShow("Saving PlayerID: " + savingPlayerId.ToString());
             Seamless.TryShow($"AFTER {MySession.Static.LocalHumanPlayer == null} - {MySession.Static.LocalCharacter == null}");
         }
-
-
-
-
-
     }
 }

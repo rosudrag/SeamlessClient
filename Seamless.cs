@@ -144,8 +144,6 @@ namespace SeamlessClient
 
         public static void SendSeamlessVersion()
         {
-          
-
             ClientMessage response = new ClientMessage(SeamlessVersion.ToString());
             MyAPIGateway.Multiplayer?.SendMessageToServer(SeamlessClientNetId, MessageUtils.Serialize(response));
             Seamless.TryShow("Sending Seamless request...");
@@ -165,7 +163,6 @@ namespace SeamlessClient
             if (MyAPIGateway.Multiplayer == null)
             {
                 isSeamlessServer = false;
-                Initilized = false;
                 return;
             }
 
