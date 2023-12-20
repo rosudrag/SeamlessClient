@@ -258,6 +258,8 @@ namespace SeamlessClient.ServerSwitching
 
         public void StartBackendSwitch(MyGameServerItem TargetServer, MyObjectBuilder_World TargetWorld)
         {
+            if (isSwitch) return;
+            
             this.TargetServer = TargetServer;
             this.TargetWorld = TargetWorld;
             OldArmorSkin = MySession.Static.LocalHumanPlayer.BuildArmorSkin;

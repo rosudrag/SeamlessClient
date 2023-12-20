@@ -14,6 +14,7 @@ using System.Linq;
 using System.Net.NetworkInformation;
 using System.Reflection;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using VRage.GameServices;
 using VRage.Plugins;
@@ -107,8 +108,28 @@ namespace SeamlessClient
             }
         }
 
+        private readonly TimeSpan ThrottleInterval = TimeSpan.FromMilliseconds(5000);
+        private readonly Dictionary<string, DateTime> throttleTimers = new Dictionary<string, DateTime>();
 
-        private static void MessageHandler(ushort packetID, byte[] data, ulong sender, bool fromServer)
+        private void MessageHandler(ushort packetID, byte[] data, ulong sender, bool fromServer)
+        {
+            var key = packetID + BitConverter.ToString(data) + sender + fromServer;
+    
+            if (throttleTimers.TryGetValue(key, out var timer))
+            {
+                if (DateTime.Now - timer < ThrottleInterval)
+                {
+                    // Ignore this call because it happens within the throttle interval.
+                    return;
+                }
+            }
+
+            // If the key doesn't exist or has expired, call the function and reset the timer.
+            throttleTimers[key] = DateTime.Now;
+            MessageHandlerFn(packetID, data, sender, fromServer);
+        }
+
+        private static void MessageHandlerFn(ushort packetID, byte[] data, ulong sender, bool fromServer)
         {
             //Ignore anything except dedicated server
             if (!fromServer || sender == 0)
