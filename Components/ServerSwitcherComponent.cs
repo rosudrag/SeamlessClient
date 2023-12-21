@@ -378,6 +378,8 @@ namespace SeamlessClient.ServerSwitching
 
             //Remove old signals
             MyHud.GpsMarkers.Clear();
+            MyHud.LocationMarkers.Clear();
+            MyHud.HackingMarkers.Clear();
 
 
             Seamless.TryShow($"2 Streaming: {clienta.HasPendingStreamingReplicables} - LastMessage: {clienta.LastMessageFromServer}");
@@ -489,7 +491,7 @@ namespace SeamlessClient.ServerSwitching
             foreach(var client in Sync.Clients.GetClients())
             {
                 clients.Add(client.SteamUserId);
-                Seamless.TryShow($"{client.SteamUserId} - {Sync.MyId}");
+                Seamless.TryShow($"ADDING {client.SteamUserId} - {Sync.MyId}");
             }
 
             foreach(var client in clients)
@@ -506,10 +508,13 @@ namespace SeamlessClient.ServerSwitching
             //Sync.Clients.SetLocalSteamId(Sync.MyId, !Sync.Clients.HasClient(Sync.MyId), MyGameService.UserName);
 
 
-       
+            Seamless.TryShow("Applying World Settings...");
             SetWorldSettings();
+
+            Seamless.TryShow("Starting Components...");
             InitComponents();
 
+            Seamless.TryShow("Starting Entity Sync...");
             StartEntitySync();
 
             //MyGuiSandbox.RemoveScreen(MyGuiScreenHudSpace.Static);
