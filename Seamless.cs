@@ -1,8 +1,10 @@
 ﻿using HarmonyLib;
 using NLog.Fluent;
+using Sandbox;
 using Sandbox.Game.Localization;
 using Sandbox.Game.World;
 using Sandbox.ModAPI;
+using SeamlessClient.Components;
 using SeamlessClient.Messages;
 using SeamlessClient.OnlinePlayersWindow;
 using SeamlessClient.ServerSwitching;
@@ -15,6 +17,7 @@ using System.Net.NetworkInformation;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using VRage;
 using VRage.GameServices;
 using VRage.Plugins;
 using VRage.Sync;
@@ -34,6 +37,7 @@ namespace SeamlessClient
         private bool Initilized = false;
         public static bool isSeamlessServer { get; private set; } = false;
         public static bool isDebug = false;
+        public static bool UseNewVersion = false;
 
         
 
@@ -173,7 +177,10 @@ namespace SeamlessClient
                 Initilized = true;
             }
 
-            
+            IMyGameServer server = MyServiceManager.Instance.GetService<IMyGameServer>();
+            MySandboxGame.PausePop();
+
+
         }
 
 
@@ -196,7 +203,12 @@ namespace SeamlessClient
 
             Seamless.TryShow($"Beginning Redirect to server: {targetServer.TargetServerId}");
             var world = targetServer.WorldRequest.DeserializeWorldData();
-            ServerSwitcherComponent.Instance.StartBackendSwitch(server, world);
+
+            //Temp fix till im not lazy enough to fix new version
+            if (UseNewVersion)
+                ServerSwitcherComponent.Instance.StartBackendSwitch(server, world);
+            else
+                ServerSwitcherComponentOLD.Instance.StartBackendSwitch(server, world);
         }
 
 

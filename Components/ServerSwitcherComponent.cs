@@ -29,6 +29,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
+using System.Timers;
 using VRage;
 using VRage.Game;
 using VRage.Game.Entity;
@@ -58,6 +59,7 @@ namespace SeamlessClient.ServerSwitching
         private static MethodInfo InitVirtualClients;
         private static MethodInfo CreateNewPlayerInternal;
         private static MethodInfo PauseClient;
+        public static MethodInfo SendPlayerData;
 
         private static FieldInfo VirtualClients;
 
@@ -77,14 +79,28 @@ namespace SeamlessClient.ServerSwitching
 
         private static bool isSwitch = false;
         private MyObjectBuilder_Player player { get; set; }
+        private static Timer pauseResetTimer = new Timer(1000);
 
 
 
         public ServerSwitcherComponent()
         {
+            pauseResetTimer.Elapsed += PauseResetTimer_Elapsed;
             Instance = this;
         }
 
+        private void PauseResetTimer_Elapsed(object sender, ElapsedEventArgs e)
+        {
+            if(MySandboxGame.IsPaused)
+            {
+                Seamless.TryShow("Game is still paused... Attempting to unpause!");
+                MySandboxGame.PausePop();
+            }
+            else
+            {
+                pauseResetTimer.Stop();
+            }
+        }
 
         public override void Patch(Harmony patcher)
         {
@@ -104,6 +120,7 @@ namespace SeamlessClient.ServerSwitching
             GpsRegisterChat = PatchUtils.GetMethod(typeof(MyGpsCollection), "RegisterChat");
             LoadMembersFromWorld = PatchUtils.GetMethod(typeof(MySession), "LoadMembersFromWorld");
             InitVirtualClients = PatchUtils.GetMethod(PatchUtils.VirtualClientsType, "Init");
+            SendPlayerData = PatchUtils.GetMethod(PatchUtils.ClientType, "SendPlayerData");
 
             CreateNewPlayerInternal = PatchUtils.GetMethod(typeof(MyPlayerCollection), "CreateNewPlayerInternal");
 
@@ -117,6 +134,7 @@ namespace SeamlessClient.ServerSwitching
             var processAllMembersData = PatchUtils.GetMethod(typeof(MyMultiplayerBase), "ProcessAllMembersData");
             var RemovePlayer = PatchUtils.GetMethod(typeof(MyPlayerCollection), "RemovePlayerFromDictionary");
             var LoadClient = PatchUtils.GetMethod(PatchUtils.ClientType, "LoadMembersFromWorld");
+
 
             Seamless.TryShow("Patched!");
 
@@ -143,11 +161,25 @@ namespace SeamlessClient.ServerSwitching
             Seamless.TryShow($"OnUserJoin! Result: {msg}");
             if (msg == JoinResult.OK)
             {
-              
+
+
+
+               
+                //SendPlayerData
+
 
                 //Invoke the switch event
                 if (isSwitch)
                     Instance.StartSwitch();
+
+                if (MySandboxGame.IsPaused)
+                {
+                    pauseResetTimer.Start();
+                    MyHud.Notifications.Remove(MyNotificationSingletons.ConnectionProblem);
+                    MySandboxGame.PausePop();
+                }
+
+                SendPlayerData.Invoke(MyMultiplayer.Static, new object[] { MyGameService.OnlineName });
             }
         }
 
@@ -281,8 +313,8 @@ namespace SeamlessClient.ServerSwitching
             {
                 Seamless.TryShow($"Needs entity Unload: {needsEntityUnload}");
 
-                //if (needsEntityUnload)
-                //    MySession.Static.SetCameraController(MyCameraControllerEnum.SpectatorFixed);
+                if (needsEntityUnload)
+                    MySession.Static.SetCameraController(MyCameraControllerEnum.SpectatorFixed);
 
                 try
                 {
@@ -384,6 +416,13 @@ namespace SeamlessClient.ServerSwitching
 
             Seamless.TryShow($"2 Streaming: {clienta.HasPendingStreamingReplicables} - LastMessage: {clienta.LastMessageFromServer}");
             Seamless.TryShow($"2 NexusMajor: {Seamless.NexusVersion.Major} - ConrolledEntity {MySession.Static.ControlledEntity == null} - HumanPlayer {MySession.Static.LocalHumanPlayer == null} - Character {MySession.Static.LocalCharacter == null}");
+
+
+
+
+            //MyMultiplayer.Static.ReplicationLayer.Disconnect();
+            //MyMultiplayer.Static.ReplicationLayer.Dispose();
+            //MyMultiplayer.Static.Dispose();
         }
 
         private void UnloadOldEntities()
@@ -449,6 +488,7 @@ namespace SeamlessClient.ServerSwitching
             Seamless.TryShow($"4 Streaming: {clienta.HasPendingStreamingReplicables} - LastMessage: {clienta.LastMessageFromServer}");
             Seamless.TryShow($"4 NexusMajor: {Seamless.NexusVersion.Major} - ConrolledEntity {MySession.Static.ControlledEntity == null} - HumanPlayer {MySession.Static.LocalHumanPlayer == null} - Character {MySession.Static.LocalCharacter == null}");
 
+
             return;
             // Create constructors
             var LayerInstance = TransportLayerConstructor.Invoke(new object[] { 2 });
@@ -463,13 +503,16 @@ namespace SeamlessClient.ServerSwitching
 
             // Set the new SyncLayer to the MySession.Static.SyncLayer
             MySessionLayer.SetValue(MySession.Static, MyMultiplayer.Static.SyncLayer);
-
+            Sync.Clients.SetLocalSteamId(Sync.MyId, false, MyGameService.UserName);
+            return;
             Seamless.TryShow("Successfully set MyMultiplayer.Static");
 
 
 
             Sync.Clients.SetLocalSteamId(Sync.MyId, false, MyGameService.UserName);
             Sync.Players.RegisterEvents();
+
+            return;
         }
 
         private void StartSwitch()
@@ -562,10 +605,14 @@ namespace SeamlessClient.ServerSwitching
             FieldInfo hudPoints = typeof(MyHudMarkerRender).GetField("m_pointsOfInterest", BindingFlags.Instance | BindingFlags.NonPublic);
             IList points = (IList)hudPoints.GetValue(MyGuiScreenHudSpace.Static.MarkerRender);
 
-
+            MySandboxGame.PausePop();
             //Sync.Players.RequestNewPlayer(Sync.MyId, 0, MyGameService.UserName, null, true, true);
             PauseClient.Invoke(MyMultiplayer.Static, new object[] { false });
-            
+            MySandboxGame.PausePop();
+            MyHud.Notifications.Remove(MyNotificationSingletons.ConnectionProblem);
+
+
+
 
             isSwitch = false;
         }
@@ -743,26 +790,15 @@ namespace SeamlessClient.ServerSwitching
             MyMultiplayer.Static.PendingReplicablesDone += Static_PendingReplicablesDone;
             //typeof(MyGuiScreenTerminal).GetMethod("CreateTabs")
 
-
-
-          
-
-
-
-
             //MySession.Static.LocalHumanPlayer.Controller.TakeControl(originalControlledEntity);
 
             MyGuiSandbox.UnloadContent();
             MyGuiSandbox.LoadContent();
 
-            
-
             //MyGuiSandbox.CreateScreen(MyPerGameSettings.GUI.HUDScreen);
 
             MyRenderProxy.RebuildCullingStructure();
             MyRenderProxy.CollectGarbage();
-
-
 
 
             Seamless.TryShow("OnlinePlayers: " + MySession.Static.Players.GetOnlinePlayers().Count);
@@ -804,10 +840,6 @@ namespace SeamlessClient.ServerSwitching
             Sync.Players.LoadConnectedPlayers(TargetWorld.Checkpoint, savingPlayerId);
             Sync.Players.LoadControlledEntities(TargetWorld.Checkpoint.ControlledEntities, TargetWorld.Checkpoint.ControlledObject, savingPlayerId);
 
-
-
-
-            Seamless.TryShow("Saving PlayerID: " + savingPlayerId.ToString());
             Seamless.TryShow($"AFTER {MySession.Static.LocalHumanPlayer == null} - {MySession.Static.LocalCharacter == null}");
         }
     }

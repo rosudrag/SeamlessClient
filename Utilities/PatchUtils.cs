@@ -72,7 +72,7 @@ Type.GetType("Sandbox.Game.Screens.Helpers.MyLoadingScreenText, Sandbox.Game");
         public static MethodInfo LoadPlayerInternal { get; private set; }
        
 
-        public static MethodInfo SendPlayerData;
+
 
 
         public static event EventHandler<JoinResultMsg> OnJoinEvent;
@@ -92,7 +92,7 @@ Type.GetType("Sandbox.Game.Screens.Helpers.MyLoadingScreenText, Sandbox.Game");
 
             /* Get Methods */
             LoadPlayerInternal = GetMethod(typeof(MyPlayerCollection), "LoadPlayerInternal");
-            SendPlayerData = GetMethod(ClientType, "SendPlayerData");
+            
 
             
 
