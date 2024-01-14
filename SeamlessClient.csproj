@@ -40,10 +40,12 @@
     </Reference>
     <Reference Include="ProtoBuf.Net">
       <HintPath>GameBinaries\ProtoBuf.Net.dll</HintPath>
+      <Private>False</Private>
     </Reference>
     <Reference Include="ProtoBuf.Net.Core, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>GameBinaries\ProtoBuf.Net.Core.dll</HintPath>
+      <Private>False</Private>
     </Reference>
     <Reference Include="Sandbox.Common">
       <HintPath>GameBinaries\Sandbox.Common.dll</HintPath>
@@ -85,13 +87,16 @@
       <HintPath>GameBinaries\VRage.Input.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="VRage.Library, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null" />
+    <Reference Include="VRage.Library, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null">
+      <Private>False</Private>
+    </Reference>
     <Reference Include="VRage.Math">
       <HintPath>GameBinaries\VRage.Math.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="VRage.Render">
       <HintPath>GameBinaries\VRage.Render.dll</HintPath>
+      <Private>False</Private>
     </Reference>
   </ItemGroup>
   <ItemGroup>

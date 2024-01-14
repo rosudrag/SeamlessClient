@@ -180,13 +180,14 @@ namespace SeamlessClient.ServerSwitching
                 }
 
                 SendPlayerData.Invoke(MyMultiplayer.Static, new object[] { MyGameService.OnlineName });
+                isSwitch = false;
             }
         }
 
         public static bool LoadClientsFromWorld(ref List<MyObjectBuilder_Client> clients)
         {
-            if(clients == null || clients.Count == 0)
-                return false;
+            if(!isSwitch || clients == null || clients.Count == 0)
+                return true;
 
             
             //Dictionary<ulong, MyConnectedClientData>
@@ -209,13 +210,16 @@ namespace SeamlessClient.ServerSwitching
                
             }
 
-            return true;
+            return false;
         }
 
 
 
         private static bool ProcessAllMembersData(ref AllMembersDataMsg msg)
         {
+            if(!isSwitch) 
+                return true;
+
 
             Sync.Players.ClearIdentities();
             if (msg.Identities != null)
@@ -610,11 +614,6 @@ namespace SeamlessClient.ServerSwitching
             PauseClient.Invoke(MyMultiplayer.Static, new object[] { false });
             MySandboxGame.PausePop();
             MyHud.Notifications.Remove(MyNotificationSingletons.ConnectionProblem);
-
-
-
-
-            isSwitch = false;
         }
 
 
