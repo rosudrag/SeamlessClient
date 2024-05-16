@@ -31,8 +31,8 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="0Harmony">
-      <HintPath>GameBinaries\0Harmony.dll</HintPath>
+    <Reference Include="0Harmony, Version=2.3.1.1, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>packages\Lib.Harmony.2.3.1.1\lib\net48\0Harmony.dll</HintPath>
     </Reference>
     <Reference Include="NLog">
       <HintPath>GameBinaries\NLog.dll</HintPath>
@@ -87,7 +87,8 @@
       <HintPath>GameBinaries\VRage.Input.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="VRage.Library, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null">
+    <Reference Include="VRage.Library">
+      <HintPath>GameBinaries\VRage.Library.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="VRage.Math">
@@ -123,6 +124,7 @@
     <Compile Include="Utilities\Types.cs" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="packages.config" />
     <None Include="SetupSolution.bat">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

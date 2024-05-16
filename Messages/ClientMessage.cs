@@ -36,10 +36,10 @@ namespace SeamlessClient.Messages
             this.PluginVersion = PluginVersion;
 
         }
-        public ClientMessage(ClientMessageType messageType, string NexusVersion)
+        public ClientMessage(ClientMessageType messageType, Version NexusVersion)
         {
             this.MessageType = messageType;
-            this.NexusVersion = NexusVersion;
+            this.NexusVersion = NexusVersion.ToString();
         }
 
 
