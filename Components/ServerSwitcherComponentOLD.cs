@@ -186,7 +186,7 @@ namespace SeamlessClient.Components
             MyMultiplayer.Static.StartProcessingClientMessages();
 
             //Recreate all controls... Will fix weird gui/paint/crap
-            MyGuiScreenHudSpace.Static.RecreateControls(true);
+            MyGuiScreenHudSpace.Static?.RecreateControls(true);
             //MySession.Static.LocalHumanPlayer.BuildArmorSkin = OldArmorSkin;
         }
 
@@ -272,6 +272,8 @@ namespace SeamlessClient.Components
             MySession.Static.CustomLoadingScreenImage = TargetWorld.Checkpoint.CustomLoadingScreenImage;
             MySession.Static.CustomLoadingScreenText = TargetWorld.Checkpoint.CustomLoadingScreenText;
             MySession.Static.CustomSkybox = TargetWorld.Checkpoint.CustomSkybox;
+            MyAPIUtilities.Static.Variables = TargetWorld.Checkpoint.ScriptManagerData.variables.Dictionary;
+
 
             try
             {
@@ -281,7 +283,7 @@ namespace SeamlessClient.Components
             }
             catch (Exception ex)
             {
-                Seamless.TryShow($"An error occured while loading GPS points! You will have an empty gps list! \n {ex.ToString()}");
+                Seamless.TryShow($"An error occurred while loading GPS points! You will have an empty gps list! \n {ex.ToString()}");
             }
 
 

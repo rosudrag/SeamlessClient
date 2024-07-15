@@ -34,10 +34,10 @@ namespace SeamlessClient
 
         private List<ComponentBase> allComps = new List<ComponentBase>();
         private Assembly thisAssembly => typeof(Seamless).Assembly;
-        private bool Initilized = false;
+        private bool Initialized = false;
         public static bool isSeamlessServer { get; private set; } = false;
         public static bool isDebug = false;
-        public static bool UseNewVersion = true;
+        public static bool UseNewVersion = false;
 
         
 
@@ -95,14 +95,14 @@ namespace SeamlessClient
             }
         }
 
-        private void InitilizeComponents()
+        private void InitializeComponents()
         {
             foreach(ComponentBase component in allComps)
             {
                 try
                 {
                     component.Initilized();
-                    TryShow($"Initilized {component.GetType()}");
+                    TryShow($"Initialized {component.GetType()}");
 
                 }catch(Exception ex)
                 {
@@ -169,12 +169,12 @@ namespace SeamlessClient
                 return;
             }
 
-            if (!Initilized)
+            if (!Initialized)
             {
                 MyAPIGateway.Multiplayer.RegisterSecureMessageHandler(SeamlessClientNetId, MessageHandler);
-                InitilizeComponents();
+                InitializeComponents();
 
-                Initilized = true;
+                Initialized = true;
             }
 
             IMyGameServer server = MyServiceManager.Instance.GetService<IMyGameServer>();

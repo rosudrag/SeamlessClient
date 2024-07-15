@@ -56,7 +56,6 @@ namespace SeamlessClient.Messages
                 MyObjectBuilderSerializerKeen.SerializeXML(memoryStream, WorldData,
                     MyObjectBuilderSerializerKeen.XmlCompression.Gzip);
                 this.WorldData = memoryStream.ToArray();
-                Log.Warn("Successfully Converted World");
             }
         }
 
