@@ -379,7 +379,7 @@ namespace SeamlessClient.Components
 
             //Request client state batch
             (MyMultiplayer.Static as MyMultiplayerClientBase).RequestBatchConfirmation();
-            MyMultiplayer.Static.PendingReplicablesDone += MyMultiplayer_PendingReplicablesDone;
+            MyMultiplayer.Static.PendingReplicablesDone += MyMultiplayer_PendingReplicableDone;
             //typeof(MyGuiScreenTerminal).GetMethod("CreateTabs")
 
             MySession.Static.LoadDataComponents();
@@ -392,13 +392,13 @@ namespace SeamlessClient.Components
             Seamless.TryShow("Loading Complete!");
         }
 
-        private static void MyMultiplayer_PendingReplicablesDone()
+        private static void MyMultiplayer_PendingReplicableDone()
         {
             if (MySession.Static.VoxelMaps.Instances.Count > 0)
             {
                 MySandboxGame.AreClipmapsReady = false;
             }
-            MyMultiplayer.Static.PendingReplicablesDone -= MyMultiplayer_PendingReplicablesDone;
+            MyMultiplayer.Static.PendingReplicablesDone -= MyMultiplayer_PendingReplicableDone;
         }
 
 
