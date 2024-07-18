@@ -162,8 +162,10 @@ namespace SeamlessClient
         public void Update()
         {
             allComps.ForEach(x => x.Update());
+            
 
-            if (MyAPIGateway.Multiplayer == null)
+            //All this crap needs to be cleaned
+            if (MyAPIGateway.Multiplayer == null || MyAPIGateway.Multiplayer.MyId == MyAPIGateway.Multiplayer.ServerId)
             {
                 isSeamlessServer = false;
                 return;
@@ -176,11 +178,6 @@ namespace SeamlessClient
 
                 Initialized = true;
             }
-
-            IMyGameServer server = MyServiceManager.Instance.GetService<IMyGameServer>();
-            MySandboxGame.PausePop();
-
-
         }
 
 

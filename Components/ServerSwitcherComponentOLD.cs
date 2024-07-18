@@ -27,6 +27,10 @@ using Sandbox.Game;
 using VRage.Game.ModAPI;
 using VRage.Utils;
 using SeamlessClient.ServerSwitching;
+using System.Threading;
+using System.Diagnostics;
+using System.Runtime.Remoting.Metadata.W3cXsd2001;
+using VRage.Scripting;
 
 namespace SeamlessClient.Components
 {
@@ -41,6 +45,7 @@ namespace SeamlessClient.Components
         private static MethodInfo GpsRegisterChat;
         private static MethodInfo LoadMembersFromWorld;
         private static MethodInfo InitVirtualClients;
+        private static MethodInfo InitDataComponents;
         private static FieldInfo AdminSettings;
         private static FieldInfo RemoteAdminSettings;
         private static FieldInfo VirtualClients;
@@ -51,6 +56,8 @@ namespace SeamlessClient.Components
 
         public static ServerSwitcherComponentOLD Instance { get; private set; }
         private string OldArmorSkin { get; set; } = string.Empty;
+
+        private static Stopwatch LoadTime = new Stopwatch();
 
         public ServerSwitcherComponentOLD() { Instance = this; }
 
@@ -72,7 +79,9 @@ namespace SeamlessClient.Components
             RemoteAdminSettings = PatchUtils.GetField(typeof(MySession), "m_remoteAdminSettings");
             LoadMembersFromWorld = PatchUtils.GetMethod(typeof(MySession), "LoadMembersFromWorld");
             InitVirtualClients = PatchUtils.GetMethod(PatchUtils.VirtualClientsType, "Init");
+            InitDataComponents = PatchUtils.GetMethod(typeof(MySession), "InitDataComponents");
             VirtualClients = PatchUtils.GetField(typeof(MySession), "VirtualClients");
+         
 
            patcher.Patch(onJoin, postfix: new HarmonyMethod(Get(typeof(ServerSwitcherComponentOLD), nameof(OnUserJoined))));
             base.Patch(patcher);
@@ -87,6 +96,9 @@ namespace SeamlessClient.Components
                 //Invoke the switch event
                 ForceClientConnection();
                 isSeamlessSwitching = false;
+                LoadTime.Stop();
+
+                MyAPIGateway.Utilities?.ShowMessage("Seamless", $"Loading Time: {LoadTime.Elapsed.ToString(@"s\.fff")}s");
             }
         }
 
@@ -97,6 +109,8 @@ namespace SeamlessClient.Components
             TargetServer = _TargetServer;
             TargetWorld = _TargetWorld;
 
+
+            LoadTime.Start();
             MySandboxGame.Static.Invoke(delegate
             {
                 //Set camera controller to fixed spectator
@@ -159,6 +173,8 @@ namespace SeamlessClient.Components
 
             MyModAPIHelper.Initialize();
             MySession.Static.LoadDataComponents();
+            InitDataComponents.Invoke(MySession.Static, null);
+
 
             //MySession.Static.LoadObjectBuildersComponents(TargetWorld.Checkpoint.SessionComponents);
             MyModAPIHelper.Initialize();
@@ -188,6 +204,10 @@ namespace SeamlessClient.Components
             //Recreate all controls... Will fix weird gui/paint/crap
             MyGuiScreenHudSpace.Static?.RecreateControls(true);
             //MySession.Static.LocalHumanPlayer.BuildArmorSkin = OldArmorSkin;
+
+            //Pop any queued pause popup messages. Dirty way
+            for(int i = 0; i < 10; i++)
+                MySandboxGame.PausePop();
         }
 
         private static void LoadOnlinePlayers()
