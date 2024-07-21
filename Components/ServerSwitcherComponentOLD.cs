@@ -31,6 +31,10 @@ using System.Threading;
 using System.Diagnostics;
 using System.Runtime.Remoting.Metadata.W3cXsd2001;
 using VRage.Scripting;
+using EmptyKeys.UserInterface.Generated.StoreBlockView_Bindings;
+using VRage.Game.Components;
+using System.CodeDom;
+using VRage.Collections;
 
 namespace SeamlessClient.Components
 {
@@ -45,10 +49,10 @@ namespace SeamlessClient.Components
         private static MethodInfo GpsRegisterChat;
         private static MethodInfo LoadMembersFromWorld;
         private static MethodInfo InitVirtualClients;
-        private static MethodInfo InitDataComponents;
         private static FieldInfo AdminSettings;
         private static FieldInfo RemoteAdminSettings;
         private static FieldInfo VirtualClients;
+        private static FieldInfo SessionComponents;
         private static PropertyInfo MySessionLayer;
 
         public static MyGameServerItem TargetServer { get; private set; }
@@ -79,7 +83,7 @@ namespace SeamlessClient.Components
             RemoteAdminSettings = PatchUtils.GetField(typeof(MySession), "m_remoteAdminSettings");
             LoadMembersFromWorld = PatchUtils.GetMethod(typeof(MySession), "LoadMembersFromWorld");
             InitVirtualClients = PatchUtils.GetMethod(PatchUtils.VirtualClientsType, "Init");
-            InitDataComponents = PatchUtils.GetMethod(typeof(MySession), "InitDataComponents");
+            SessionComponents = PatchUtils.GetField(typeof(MySession), "m_loadOrder");
             VirtualClients = PatchUtils.GetField(typeof(MySession), "VirtualClients");
          
 
@@ -110,7 +114,7 @@ namespace SeamlessClient.Components
             TargetWorld = _TargetWorld;
 
 
-            LoadTime.Start();
+            LoadTime.Restart();
             MySandboxGame.Static.Invoke(delegate
             {
                 //Set camera controller to fixed spectator
@@ -173,7 +177,6 @@ namespace SeamlessClient.Components
 
             MyModAPIHelper.Initialize();
             MySession.Static.LoadDataComponents();
-            InitDataComponents.Invoke(MySession.Static, null);
 
 
             //MySession.Static.LoadObjectBuildersComponents(TargetWorld.Checkpoint.SessionComponents);
@@ -190,7 +193,7 @@ namespace SeamlessClient.Components
 
 
             UpdateWorldGenerator();
-
+            UpdateSessionComponents(TargetWorld.Checkpoint.SessionComponents);
             StartEntitySync();
 
 
@@ -293,6 +296,8 @@ namespace SeamlessClient.Components
             MySession.Static.CustomLoadingScreenText = TargetWorld.Checkpoint.CustomLoadingScreenText;
             MySession.Static.CustomSkybox = TargetWorld.Checkpoint.CustomSkybox;
             MyAPIUtilities.Static.Variables = TargetWorld.Checkpoint.ScriptManagerData.variables.Dictionary;
+
+           
 
 
             try
@@ -403,6 +408,7 @@ namespace SeamlessClient.Components
             //typeof(MyGuiScreenTerminal).GetMethod("CreateTabs")
 
             MySession.Static.LoadDataComponents();
+            //Session.Static.LoadObjectBuildersComponents(TargetWorld.Checkpoint.SessionComponents);
             //MyGuiSandbox.LoadData(false);
             //MyGuiSandbox.AddScreen(MyGuiSandbox.CreateScreen(MyPerGameSettings.GUI.HUDScreen));
             MyRenderProxy.RebuildCullingStructure();
@@ -469,7 +475,7 @@ namespace SeamlessClient.Components
             MySessionComponentIngameHelp component = MySession.Static.GetComponent<MySessionComponentIngameHelp>();
             component?.TryCancelObjective();
 
-            //Clear all old players and clients.
+
             Sync.Clients.Clear();
             Sync.Players.ClearPlayers();
 
@@ -482,8 +488,17 @@ namespace SeamlessClient.Components
             MySession.Static.Gpss.RemovePlayerGpss(MySession.Static.LocalPlayerId);
             MyHud.GpsMarkers.Clear();
             MyMultiplayer.Static.ReplicationLayer.Disconnect();
+            UnloadSessionComponents();
+
+
             MyMultiplayer.Static.ReplicationLayer.Dispose();
+
+            
+
             MyMultiplayer.Static.Dispose();
+
+            //Clear all old players and clients.
+
             MyMultiplayer.Static = null;
 
             //Close any respawn screens that are open
@@ -504,7 +519,49 @@ namespace SeamlessClient.Components
             }
         }
 
+        private void UnloadSessionComponents()
+        {
+            List<MySessionComponentBase> sessions = (List<MySessionComponentBase>)SessionComponents.GetValue(MySession.Static);
 
+            foreach(var session in sessions)
+            {
+                if(session.ModContext == null)
+                    continue;
+
+                if (session.Initialized == false)
+                    continue;
+
+
+                MethodInfo unload = PatchUtils.GetMethod(typeof(MySessionComponentBase), "UnloadData");
+                unload.Invoke(session, null);
+                FieldInfo inited = PatchUtils.GetField(typeof(MySessionComponentBase), "m_initialized");
+                inited.SetValue(session, false);
+
+
+                MyLog.Default.WriteLine($"{session.GetType()}");
+            }
+        }
+
+        static List<Type> ValidInitTypes = new List<Type>() { typeof(MyProceduralWorldGenerator), typeof(MySessionComponentSafeZones) };
+
+        private static void UpdateSessionComponents(List<MyObjectBuilder_SessionComponent> objectBuilderData)
+        {
+
+            FieldInfo sessionComps = PatchUtils.GetField(typeof(MySession), "m_sessionComponents");
+            CachingDictionary<Type, MySessionComponentBase>  dict = (CachingDictionary<Type, MySessionComponentBase>)sessionComps.GetValue(MySession.Static);
+
+            foreach (var entity in objectBuilderData)
+            {
+
+                Type t =  MySessionComponentMapping.TryGetMappedSessionComponentType(entity.GetType());
+                if(dict.TryGetValue(t, out var component) & ValidInitTypes.Contains(component.GetType()))
+                {
+                    component.Init(entity);
+                }
+            }
+
+
+        }
 
 
 

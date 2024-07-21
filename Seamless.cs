@@ -47,8 +47,6 @@ namespace SeamlessClient
             TryShow($"Running Seamless Client Plugin v[{SeamlessVersion}]");
             SeamlessPatcher = new Harmony("SeamlessClientPatcher");
             GetComponents();
-            
-
             PatchComponents(SeamlessPatcher);
         }
 
