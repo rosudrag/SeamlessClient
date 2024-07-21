@@ -191,8 +191,6 @@ namespace SeamlessClient.Components
 
             MyMultiplayer.Static.OnSessionReady();
 
-
-            UpdateWorldGenerator();
             UpdateSessionComponents(TargetWorld.Checkpoint.SessionComponents);
             StartEntitySync();
 
@@ -427,41 +425,6 @@ namespace SeamlessClient.Components
             MyMultiplayer.Static.PendingReplicablesDone -= MyMultiplayer_PendingReplicableDone;
         }
 
-
-        private static void UpdateWorldGenerator()
-        {
-            //This will re-init the MyProceduralWorldGenerator. (Not doing this will result in asteroids not rendering in properly)
-
-
-            //This shoud never be null
-            var Generator = MySession.Static.GetComponent<MyProceduralWorldGenerator>();
-
-            //Force component to unload
-            UnloadProceduralWorldGenerator.Invoke(Generator, null);
-
-            //Re-call the generator init
-            MyObjectBuilder_WorldGenerator GeneratorSettings = (MyObjectBuilder_WorldGenerator)TargetWorld.Checkpoint.SessionComponents.FirstOrDefault(x => x.GetType() == typeof(MyObjectBuilder_WorldGenerator));
-            if (GeneratorSettings != null)
-            {
-                //Re-initilized this component (forces to update asteroid areas like not in planets etc)
-                Generator.Init(GeneratorSettings);
-            }
-
-            //Force component to reload, re-syncing settings and seeds to the destination server
-            Generator.LoadData();
-
-            //We need to go in and force planets to be empty areas in the generator. This is originially done on planet init.
-            FieldInfo PlanetInitArgs = typeof(MyPlanet).GetField("m_planetInitValues", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            foreach (var Planet in MyEntities.GetEntities().OfType<MyPlanet>())
-            {
-                MyPlanetInitArguments args = (MyPlanetInitArguments)PlanetInitArgs.GetValue(Planet);
-
-                float MaxRadius = args.MaxRadius;
-
-                Generator.MarkEmptyArea(Planet.PositionComp.GetPosition(), MaxRadius);
-            }
-        }
-
         private void UnloadCurrentServer()
         {
             //Unload current session on game thread
@@ -557,6 +520,7 @@ namespace SeamlessClient.Components
                 if(dict.TryGetValue(t, out var component) & ValidInitTypes.Contains(component.GetType()))
                 {
                     component.Init(entity);
+                    component.LoadData();
                 }
             }
 
