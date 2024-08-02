@@ -655,7 +655,7 @@ namespace SeamlessClient.ServerSwitching
             }
             catch (Exception ex)
             {
-                Seamless.TryShow($"An error occurred while loading GPS points! You will have an empty gps list! \n {ex.ToString()}");
+                Seamless.TryShow($"An error occured while loading GPS points! You will have an empty gps list! \n {ex.ToString()}");
             }
 
 

@@ -34,10 +34,10 @@ namespace SeamlessClient
 
         private List<ComponentBase> allComps = new List<ComponentBase>();
         private Assembly thisAssembly => typeof(Seamless).Assembly;
-        private bool Initialized = false;
+        private bool Initilized = false;
         public static bool isSeamlessServer { get; private set; } = false;
         public static bool isDebug = false;
-        public static bool UseNewVersion = false;
+        public static bool UseNewVersion = true;
 
         
 
@@ -47,6 +47,8 @@ namespace SeamlessClient
             TryShow($"Running Seamless Client Plugin v[{SeamlessVersion}]");
             SeamlessPatcher = new Harmony("SeamlessClientPatcher");
             GetComponents();
+            
+
             PatchComponents(SeamlessPatcher);
         }
 
@@ -93,14 +95,14 @@ namespace SeamlessClient
             }
         }
 
-        private void InitializeComponents()
+        private void InitilizeComponents()
         {
             foreach(ComponentBase component in allComps)
             {
                 try
                 {
                     component.Initilized();
-                    TryShow($"Initialized {component.GetType()}");
+                    TryShow($"Initilized {component.GetType()}");
 
                 }catch(Exception ex)
                 {
@@ -160,22 +162,25 @@ namespace SeamlessClient
         public void Update()
         {
             allComps.ForEach(x => x.Update());
-            
 
-            //All this crap needs to be cleaned
-            if (MyAPIGateway.Multiplayer == null || MyAPIGateway.Multiplayer.MyId == MyAPIGateway.Multiplayer.ServerId)
+            if (MyAPIGateway.Multiplayer == null)
             {
                 isSeamlessServer = false;
                 return;
             }
 
-            if (!Initialized)
+            if (!Initilized)
             {
                 MyAPIGateway.Multiplayer.RegisterSecureMessageHandler(SeamlessClientNetId, MessageHandler);
-                InitializeComponents();
+                InitilizeComponents();
 
-                Initialized = true;
+                Initilized = true;
             }
+
+            IMyGameServer server = MyServiceManager.Instance.GetService<IMyGameServer>();
+            MySandboxGame.PausePop();
+
+
         }
 
 
