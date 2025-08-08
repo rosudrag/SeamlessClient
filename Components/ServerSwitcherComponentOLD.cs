@@ -74,7 +74,7 @@ namespace SeamlessClient.Components
             if(WaitingForClientCheck && MySession.Static?.LocalHumanPlayer != null)
                 WaitingForClientCheck = false;
 
-            if (isSeamlessSwitching || WaitingForClientCheck)
+            if (isSeamlessSwitching || WaitingForClientCheck && TargetServer != null)
             {
                 //SeamlessClient.TryShow("Switching Servers!");
                 MyRenderProxy.DebugDrawText2D(new VRageMath.Vector2(MySandboxGame.ScreenViewport.Width/2, MySandboxGame.ScreenViewport.Height - 150), SwitchingText, VRageMath.Color.AliceBlue, 1f, MyGuiDrawAlignEnum.HORISONTAL_CENTER_AND_VERTICAL_CENTER);
@@ -333,6 +333,8 @@ namespace SeamlessClient.Components
             MyMultiplayer.Static.StartProcessingClientMessages();
 
             //Recreate all controls... Will fix weird gui/paint/crap
+
+            //MyGuiScreenColorPicker
             MyGuiScreenHudSpace.Static.RecreateControls(true);
             SwitchingText = "Client Registered. Waiting for entities from server...";
            
