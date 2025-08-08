@@ -134,9 +134,13 @@
     <Folder Include="ServerSwitching\" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="deploy.bat" />
     <Content Include="SeamlessClient.xml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PostBuildEvent>call "$(ProjectDir)\deploy.bat" "$(TargetPath)" "$(SolutionName)"</PostBuildEvent>
+  </PropertyGroup>
 </Project>

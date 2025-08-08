@@ -1,7 +1,7 @@
 ﻿:: This script creates a symlink to the game binaries to account for different installation directories on different systems.
 
 @echo off
-set /p path="Please enter the folder location of your SpaceEngineers bin64 folder: "
+set /p path="F:\SteamLibrary\steamapps\common\SpaceEngineers\Bin64"
 cd %~dp0
 rmdir GameBinaries > nul 2>&1
 mklink /J GameBinaries "%path%"

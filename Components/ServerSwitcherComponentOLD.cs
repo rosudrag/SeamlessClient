@@ -38,6 +38,8 @@ namespace SeamlessClient.Components
     {
         private static bool isSeamlessSwitching { get; set; } = false;
         private static bool WaitingForClientCheck { get; set; } = false;
+        private static int ConnectionRetryCount { get; set; } = 0;
+        private const int MaxConnectionRetries = 5;
 
 
         private static ConstructorInfo TransportLayerConstructor;
@@ -69,15 +71,19 @@ namespace SeamlessClient.Components
             if (WaitingForClientCheck == false && isSeamlessSwitching)
                 WaitingForClientCheck = true;
 
-            if(WaitingForClientCheck && MySession.Static.LocalHumanPlayer != null)
+            if(WaitingForClientCheck && MySession.Static?.LocalHumanPlayer != null)
                 WaitingForClientCheck = false;
 
             if (isSeamlessSwitching || WaitingForClientCheck)
             {
                 //SeamlessClient.TryShow("Switching Servers!");
                 MyRenderProxy.DebugDrawText2D(new VRageMath.Vector2(MySandboxGame.ScreenViewport.Width/2, MySandboxGame.ScreenViewport.Height - 150), SwitchingText, VRageMath.Color.AliceBlue, 1f, MyGuiDrawAlignEnum.HORISONTAL_CENTER_AND_VERTICAL_CENTER);
-                MyRenderProxy.DebugDrawText2D(new VRageMath.Vector2(MySandboxGame.ScreenViewport.Width / 2, MySandboxGame.ScreenViewport.Height - 200), $"Transferring to {TargetServer.Name}", VRageMath.Color.Yellow, 1.5f, MyGuiDrawAlignEnum.HORISONTAL_CENTER_AND_VERTICAL_CENTER);
-
+                
+                // Check if TargetServer is not null before accessing its properties
+                if (TargetServer != null)
+                {
+                    MyRenderProxy.DebugDrawText2D(new VRageMath.Vector2(MySandboxGame.ScreenViewport.Width / 2, MySandboxGame.ScreenViewport.Height - 200), $"Transferring to {TargetServer.Name}", VRageMath.Color.Yellow, 1.5f, MyGuiDrawAlignEnum.HORISONTAL_CENTER_AND_VERTICAL_CENTER);
+                }
 
                 MyRenderProxy.DebugDrawLine2D(new VRageMath.Vector2((MySandboxGame.ScreenViewport.Width / 2) - 250, MySandboxGame.ScreenViewport.Height - 170), new VRageMath.Vector2((MySandboxGame.ScreenViewport.Width / 2)+250, MySandboxGame.ScreenViewport.Height - 170), VRageMath.Color.Blue, VRageMath.Color.Green);
             }
@@ -153,17 +159,35 @@ namespace SeamlessClient.Components
             {
                 //SeamlessClient.TryShow("User Joined! Result: " + msg.JoinResult.ToString());
 
-                //Invoke the switch event
+                try
+                {
+                    //Invoke the switch event
+                    SwitchingText = "Server Responded! Removing Old Entities and forcing client connection!";
+                    RemoveOldEntities();
+                    ForceClientConnection();
+                    ModAPI.ServerSwitched();
 
-                SwitchingText = "Server Responded! Removing Old Entities and forcing client connection!";
-                RemoveOldEntities();
-                ForceClientConnection();
-                ModAPI.ServerSwitched();
+                    MySession.Static.LocalHumanPlayer?.Character?.Stand();
+                }
+                catch (Exception ex)
+                {
+                    Seamless.TryShow($"Error during seamless switch: {ex.Message}");
+                    MyLog.Default.WriteLineAndConsole($"SeamlessClient OnUserJoined Exception: {ex}");
+                    
+                    // Don't set isSeamlessSwitching to false yet - ForceClientConnection will retry
+                    SwitchingText = "Recovering from connection error...";
+                    
+                    // Ensure game isn't left paused
+                    if (MySandboxGame.IsPaused)
+                    {
+                        MySandboxGame.IsPaused = false;
+                    }
+                    
+                    // Let ForceClientConnection handle the retry logic
+                    return;
+                }
 
-            
-
-
-                MySession.Static.LocalHumanPlayer?.Character?.Stand();
+                // Only set to false if everything succeeded
                 isSeamlessSwitching = false;
             }
         }
@@ -179,6 +203,7 @@ namespace SeamlessClient.Components
            
             SwitchingText = "Starting Seamless Switch... Please wait!";
             isSeamlessSwitching = true;
+            ConnectionRetryCount = 0; // Reset retry count for new switch
             OldArmorSkin = MySession.Static.LocalHumanPlayer.BuildArmorSkin;
             TargetServer = _TargetServer;
             TargetWorld = _TargetWorld;
@@ -233,8 +258,36 @@ namespace SeamlessClient.Components
 
         private static void ForceClientConnection()
         {
-         
-
+            // Validate critical objects before proceeding
+            if (TargetWorld?.Checkpoint == null || TargetServer == null || MySession.Static == null)
+            {
+                ConnectionRetryCount++;
+                Seamless.TryShow($"ForceClientConnection validation failed (Retry {ConnectionRetryCount}/{MaxConnectionRetries}) - TargetWorld: {TargetWorld != null}, Checkpoint: {TargetWorld?.Checkpoint != null}, TargetServer: {TargetServer != null}, Session: {MySession.Static != null}");
+                
+                if (ConnectionRetryCount >= MaxConnectionRetries)
+                {
+                    Seamless.TryShow("Max connection retries reached. Aborting seamless switch.");
+                    SwitchingText = "Connection failed - returning to game";
+                    isSeamlessSwitching = false;
+                    ConnectionRetryCount = 0;
+                    MySandboxGame.IsPaused = false;
+                    return;
+                }
+                
+                // Retry connection after a delay
+                MySandboxGame.Static.Invoke(delegate
+                {
+                    if (isSeamlessSwitching && TargetWorld != null && TargetServer != null)
+                    {
+                        SwitchingText = $"Retrying connection ({ConnectionRetryCount}/{MaxConnectionRetries})...";
+                        ForceClientConnection();
+                    }
+                }, "SeamlessClient Retry", 1000); // 1 second delay
+                return;
+            }
+            
+            // Reset retry count on successful validation
+            ConnectionRetryCount = 0;
 
             //Set World Settings
             SetWorldSettings();
@@ -347,11 +400,17 @@ namespace SeamlessClient.Components
         {
             //MyEntities.MemoryLimitAddFailureReset();
 
+            // Ensure we have valid checkpoint data
+            if (TargetWorld?.Checkpoint == null)
+            {
+                throw new InvalidOperationException("SetWorldSettings called with null TargetWorld or Checkpoint");
+            }
+
             //Clear old list
             MySession.Static.PromotedUsers.Clear();
             MySession.Static.CreativeTools.Clear();
             Dictionary<ulong, AdminSettingsEnum> AdminSettingsList = (Dictionary<ulong, AdminSettingsEnum>)RemoteAdminSettings.GetValue(MySession.Static);
-            AdminSettingsList.Clear();
+            AdminSettingsList?.Clear();
 
 
 
