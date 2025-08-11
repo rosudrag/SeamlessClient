@@ -43,7 +43,7 @@ using VRageRender.Messages;
 
 namespace SeamlessClient.ServerSwitching
 {
-    public class ServerSwitcherComponent : ComponentBase
+    public class ServerSwitcherV2 : ComponentBase
     {
         public static ConstructorInfo ClientConstructor;
         public static ConstructorInfo SyncLayerConstructor;
@@ -64,7 +64,7 @@ namespace SeamlessClient.ServerSwitching
         private static FieldInfo VirtualClients;
 
 
-        public static ServerSwitcherComponent Instance { get; private set; }
+        public static ServerSwitcherV2 Instance { get; private set; }
 
         private MyGameServerItem TargetServer { get; set; }
         private MyObjectBuilder_World TargetWorld { get; set; }
@@ -83,7 +83,7 @@ namespace SeamlessClient.ServerSwitching
 
 
 
-        public ServerSwitcherComponent()
+        public ServerSwitcherV2()
         {
             pauseResetTimer.Elapsed += PauseResetTimer_Elapsed;
             Instance = this;
@@ -139,16 +139,16 @@ namespace SeamlessClient.ServerSwitching
             Seamless.TryShow("Patched!");
 
 
-            patcher.Patch(LoadClient, prefix: new HarmonyMethod(Get(typeof(ServerSwitcherComponent), nameof(LoadClientsFromWorld))));
-            patcher.Patch(RemovePlayer, prefix: new HarmonyMethod(Get(typeof(ServerSwitcherComponent), nameof(RemovePlayerFromDict))));
-            patcher.Patch(processAllMembersData, prefix: new HarmonyMethod(Get(typeof(ServerSwitcherComponent), nameof(ProcessAllMembersData))));
-            patcher.Patch(onDisconnectedClient, prefix: new HarmonyMethod(Get(typeof(ServerSwitcherComponent), nameof(OnDisconnectedClient))));
-            patcher.Patch(onClientRemoved, prefix: new HarmonyMethod(Get(typeof(ServerSwitcherComponent), nameof(RemoveClient))));
-            patcher.Patch(onAllmembersData, prefix: new HarmonyMethod(Get(typeof(ServerSwitcherComponent), nameof(OnAllMembersData))));
+            patcher.Patch(LoadClient, prefix: new HarmonyMethod(Get(typeof(ServerSwitcherV2), nameof(LoadClientsFromWorld))));
+            //patcher.Patch(RemovePlayer, prefix: new HarmonyMethod(Get(typeof(ServerSwitcherComponent), nameof(RemovePlayerFromDict))));
+            patcher.Patch(processAllMembersData, prefix: new HarmonyMethod(Get(typeof(ServerSwitcherV2), nameof(ProcessAllMembersData))));
+            patcher.Patch(onDisconnectedClient, prefix: new HarmonyMethod(Get(typeof(ServerSwitcherV2), nameof(OnDisconnectedClient))));
+            patcher.Patch(onClientRemoved, prefix: new HarmonyMethod(Get(typeof(ServerSwitcherV2), nameof(RemoveClient))));
+            patcher.Patch(onAllmembersData, prefix: new HarmonyMethod(Get(typeof(ServerSwitcherV2), nameof(OnAllMembersData))));
 
 
 
-            patcher.Patch(onClientConnected, prefix: new HarmonyMethod(Get(typeof(ServerSwitcherComponent), nameof(OnClientConnected))));
+            patcher.Patch(onClientConnected, prefix: new HarmonyMethod(Get(typeof(ServerSwitcherV2), nameof(OnClientConnected))));
 
 
             base.Patch(patcher);
@@ -243,15 +243,6 @@ namespace SeamlessClient.ServerSwitching
             return false;
         }
 
-        private static bool RemovePlayerFromDict(MyPlayer.PlayerId playerId)
-        {
-            //Seamless.TryShow($"Removing player {playerId.SteamId} from dictionariy! \n {Environment.StackTrace.ToString()} - Sender: {MyEventContext.Current.Sender}");
-          
-
-
-            return true;
-        }
-
 
         public override void Initilized()
         {
@@ -286,7 +277,7 @@ namespace SeamlessClient.ServerSwitching
         public static bool OnDisconnectedClient(ref MyControlDisconnectedMsg data, ulong sender)
         {
             Seamless.TryShow($"OnDisconnectedClient {data.Client} - Sender {sender}");
-            if (data.Client == Sync.MyId)
+            if (isSwitch && data.Client == Sync.MyId)
                 return false;
 
             return true;
@@ -370,7 +361,8 @@ namespace SeamlessClient.ServerSwitching
 
 
             //Unregister Chat
-            MyHud.Chat.UnregisterChat(MyMultiplayer.Static);
+         
+        
 
             MethodInfo removeClient = PatchUtils.GetMethod(PatchUtils.ClientType, "MyMultiplayerClient_ClientLeft");
             foreach (var connectedClient in Sync.Clients.GetClients())
@@ -413,11 +405,8 @@ namespace SeamlessClient.ServerSwitching
 
             ResetReplicationTime(false);
 
-            //Remove old signals
-            MyHud.GpsMarkers.Clear();
-            MyHud.LocationMarkers.Clear();
-            MyHud.HackingMarkers.Clear();
-
+            //Reset Hud
+            MyHud.Static.UnloadDataConditional();
 
             Seamless.TryShow($"2 Streaming: {clienta.HasPendingStreamingReplicables} - LastMessage: {clienta.LastMessageFromServer}");
             Seamless.TryShow($"2 NexusMajor: {Seamless.NexusVersion.Major} - ConrolledEntity {MySession.Static.ControlledEntity == null} - HumanPlayer {MySession.Static.LocalHumanPlayer == null} - Character {MySession.Static.LocalCharacter == null}");
@@ -574,8 +563,8 @@ namespace SeamlessClient.ServerSwitching
             typeof(MySandboxGame).GetField("m_pauseStackCount", BindingFlags.Static | BindingFlags.NonPublic).SetValue(null, 0);
 
 
- 
-            MyHud.Chat.RegisterChat(MyMultiplayer.Static);
+     
+
             //GpsRegisterChat.Invoke(MySession.Static.Gpss, new object[] { MyMultiplayer.Static });
 
 

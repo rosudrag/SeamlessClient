@@ -1,45 +1,48 @@
 ﻿using HarmonyLib;
-using Sandbox.Game.World;
 using Sandbox;
+using Sandbox.Engine.Multiplayer;
+using Sandbox.Engine.Networking;
+using Sandbox.Game;
+using Sandbox.Game.Entities;
+using Sandbox.Game.Entities.Character;
+using Sandbox.Game.GameSystems.CoordinateSystem;
+using Sandbox.Game.Gui;
+using Sandbox.Game.GUI;
+using Sandbox.Game.Multiplayer;
+using Sandbox.Game.SessionComponents;
+using Sandbox.Game.World;
+using Sandbox.Game.World.Generator;
+using Sandbox.Graphics.GUI;
+using Sandbox.ModAPI;
+using SeamlessClient.ServerSwitching;
+using SeamlessClient.ServerSwitching.Commands;
+using SeamlessClient.ServerSwitching.SwitchUtils;
 using SeamlessClient.Utilities;
+using SpaceEngineers.Game.GUI;
+using SpaceEngineers.Game.World;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
-using VRage.Game;
-using VRage.GameServices;
-using Sandbox.Game.Gui;
-using Sandbox.Game.SessionComponents;
-using SpaceEngineers.Game.GUI;
-using Sandbox.Engine.Multiplayer;
-using Sandbox.Game.Multiplayer;
-using Sandbox.Game.Entities;
-using Sandbox.Engine.Networking;
-using System.Reflection;
-using VRage.Network;
-using Sandbox.ModAPI;
-using VRageRender.Messages;
-using VRageRender;
-using Sandbox.Game.GUI;
-using Sandbox.Game.World.Generator;
-using Sandbox.Game;
-using VRage.Game.ModAPI;
-using VRage.Utils;
-using SeamlessClient.ServerSwitching;
-using Sandbox.Game.Entities.Character;
-using VRage.Game.Utils;
 using VRage;
-using Sandbox.Game.GameSystems.CoordinateSystem;
+using VRage.Game;
+using VRage.Game.Components;
+using VRage.Game.ModAPI;
+using VRage.Game.Utils;
+using VRage.GameServices;
+using VRage.Network;
+using VRage.Utils;
+using VRageRender;
+using VRageRender.Messages;
 
 namespace SeamlessClient.Components
 {
-    public class ServerSwitcherComponentOLD : ComponentBase
+    public class ServerSwitcherV1 : ComponentBase
     {
         private static bool isSeamlessSwitching { get; set; } = false;
         private static bool WaitingForClientCheck { get; set; } = false;
-        private static int ConnectionRetryCount { get; set; } = 0;
-        private const int MaxConnectionRetries = 5;
 
 
         private static ConstructorInfo TransportLayerConstructor;
@@ -58,12 +61,32 @@ namespace SeamlessClient.Components
         public static MyGameServerItem TargetServer { get; private set; }
         public static MyObjectBuilder_World TargetWorld { get; private set; }
 
-        public static ServerSwitcherComponentOLD Instance { get; private set; }
+        public static ServerSwitcherV1 Instance { get; private set; }
         private string OldArmorSkin { get; set; } = string.Empty;
 
-        public ServerSwitcherComponentOLD() { Instance = this; }
+        private MyCharacterCommands myCommands;
+
+        public ServerSwitcherV1() { Instance = this; }
         public static string SwitchingText = string.Empty;
 
+        public override void Patch(Harmony patcher)
+        {
+            TransportLayerConstructor = PatchUtils.GetConstructor(PatchUtils.MyTransportLayerType, new[] { typeof(int) });
+            SyncLayerConstructor = PatchUtils.GetConstructor(PatchUtils.SyncLayerType, new[] { PatchUtils.MyTransportLayerType });
+            ClientConstructor = PatchUtils.GetConstructor(PatchUtils.ClientType, new[] { typeof(MyGameServerItem), PatchUtils.SyncLayerType });
+            MySessionLayer = PatchUtils.GetProperty(typeof(MySession), "SyncLayer");
+
+            var onJoin = PatchUtils.GetMethod(PatchUtils.ClientType, "OnUserJoined");
+            UnloadProceduralWorldGenerator = PatchUtils.GetMethod(typeof(MyProceduralWorldGenerator), "UnloadData");
+            GpsRegisterChat = PatchUtils.GetMethod(typeof(MyGpsCollection), "RegisterChat");
+            AdminSettings = PatchUtils.GetField(typeof(MySession), "m_adminSettings");
+            RemoteAdminSettings = PatchUtils.GetField(typeof(MySession), "m_remoteAdminSettings");
+            LoadMembersFromWorld = PatchUtils.GetMethod(typeof(MySession), "LoadMembersFromWorld");
+            InitVirtualClients = PatchUtils.GetMethod(PatchUtils.VirtualClientsType, "Init");
+            VirtualClients = PatchUtils.GetField(typeof(MySession), "VirtualClients");
+
+            patcher.Patch(onJoin, postfix: new HarmonyMethod(Get(typeof(ServerSwitcherV1), nameof(OnUserJoined))));
+        }
 
         public override void Update()
         {
@@ -77,117 +100,43 @@ namespace SeamlessClient.Components
             if (isSeamlessSwitching || WaitingForClientCheck && TargetServer != null)
             {
                 //SeamlessClient.TryShow("Switching Servers!");
-                MyRenderProxy.DebugDrawText2D(new VRageMath.Vector2(MySandboxGame.ScreenViewport.Width/2, MySandboxGame.ScreenViewport.Height - 150), SwitchingText, VRageMath.Color.AliceBlue, 1f, MyGuiDrawAlignEnum.HORISONTAL_CENTER_AND_VERTICAL_CENTER);
-                
-                // Check if TargetServer is not null before accessing its properties
-                if (TargetServer != null)
-                {
-                    MyRenderProxy.DebugDrawText2D(new VRageMath.Vector2(MySandboxGame.ScreenViewport.Width / 2, MySandboxGame.ScreenViewport.Height - 200), $"Transferring to {TargetServer.Name}", VRageMath.Color.Yellow, 1.5f, MyGuiDrawAlignEnum.HORISONTAL_CENTER_AND_VERTICAL_CENTER);
-                }
+                MyRenderProxy.DebugDrawText2D(new VRageMath.Vector2(MySandboxGame.ScreenViewport.Width/ 2, MySandboxGame.ScreenViewport.Height - 250), SwitchingText, VRageMath.Color.AliceBlue, 1f, MyGuiDrawAlignEnum.HORISONTAL_CENTER_AND_VERTICAL_CENTER);
+                MyRenderProxy.DebugDrawText2D(new VRageMath.Vector2(MySandboxGame.ScreenViewport.Width / 2, MySandboxGame.ScreenViewport.Height - 300), $"Transferring to {TargetServer.Name}", VRageMath.Color.Yellow, 1.5f, MyGuiDrawAlignEnum.HORISONTAL_CENTER_AND_VERTICAL_CENTER);
 
-                MyRenderProxy.DebugDrawLine2D(new VRageMath.Vector2((MySandboxGame.ScreenViewport.Width / 2) - 250, MySandboxGame.ScreenViewport.Height - 170), new VRageMath.Vector2((MySandboxGame.ScreenViewport.Width / 2)+250, MySandboxGame.ScreenViewport.Height - 170), VRageMath.Color.Blue, VRageMath.Color.Green);
+
+                MyRenderProxy.DebugDrawLine2D(new VRageMath.Vector2((MySandboxGame.ScreenViewport.Width / 2) - 250, MySandboxGame.ScreenViewport.Height - 270), new VRageMath.Vector2((MySandboxGame.ScreenViewport.Width / 2)+250, MySandboxGame.ScreenViewport.Height - 270), VRageMath.Color.Blue, VRageMath.Color.Green);
             }
-        }
-
-
-        public override void Patch(Harmony patcher)
-        {
-            TransportLayerConstructor = PatchUtils.GetConstructor(PatchUtils.MyTransportLayerType, new[] { typeof(int) });
-            SyncLayerConstructor = PatchUtils.GetConstructor(PatchUtils.SyncLayerType,  new[] { PatchUtils.MyTransportLayerType });
-            ClientConstructor = PatchUtils.GetConstructor(PatchUtils.ClientType, new[] { typeof(MyGameServerItem), PatchUtils.SyncLayerType });
-            MySessionLayer = PatchUtils.GetProperty(typeof(MySession), "SyncLayer");
-
-            var onJoin = PatchUtils.GetMethod(PatchUtils.ClientType, "OnUserJoined");
-            UnloadProceduralWorldGenerator = PatchUtils.GetMethod(typeof(MyProceduralWorldGenerator), "UnloadData");
-            GpsRegisterChat = PatchUtils.GetMethod(typeof(MyGpsCollection), "RegisterChat");
-            AdminSettings = PatchUtils.GetField(typeof(MySession), "m_adminSettings");
-            RemoteAdminSettings = PatchUtils.GetField(typeof(MySession), "m_remoteAdminSettings");
-            LoadMembersFromWorld = PatchUtils.GetMethod(typeof(MySession), "LoadMembersFromWorld");
-            InitVirtualClients = PatchUtils.GetMethod(PatchUtils.VirtualClientsType, "Init");
-            VirtualClients = PatchUtils.GetField(typeof(MySession), "VirtualClients");
-
-            patcher.Patch(onJoin, postfix: new HarmonyMethod(Get(typeof(ServerSwitcherComponentOLD), nameof(OnUserJoined))));
-           
-            
         }
 
         public override void Initilized()
         {
-            MyAPIGateway.Utilities.MessageEntered += Utilities_MessageEntered;
+            myCommands = new MyCharacterCommands();
         }
 
-        private void Utilities_MessageEntered(string messageText, ref bool sendToOthers)
+        public override void Destroy()
         {
-            if (!messageText.StartsWith("/nexus"))
-                return;
-
-            string[] cmd = messageText.ToLowerInvariant().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-
-            if (cmd[1] == "refreshcharacter")
-            {
-                if(MySession.Static.LocalHumanPlayer == null)
-                {
-                    MyAPIGateway.Utilities?.ShowMessage("Seamless", "LocalHumanPlayer Null!");
-                    return;
-                }
-
-                if (MySession.Static.LocalHumanPlayer.Character == null)
-                {
-                    MyAPIGateway.Utilities?.ShowMessage("Seamless", "LocalHumanPlayerCharacter Null!");
-                    return;
-                }
-
-
-                //None of this shit works.... 5/3/2025
-                MySession.Static.LocalHumanPlayer.SpawnIntoCharacter(MySession.Static.LocalHumanPlayer.Character);
-                MySession.Static.LocalHumanPlayer.Controller.TakeControl(MySession.Static.LocalHumanPlayer.Character);
-
-                MySession.Static.LocalHumanPlayer.Character.GetOffLadder();
-                MySession.Static.LocalHumanPlayer.Character.Stand();
-               
-                MySession.Static.LocalHumanPlayer.Character.ResetControls();
-                MySession.Static.LocalHumanPlayer.Character.UpdateCharacterPhysics(true);
-
-                MyAPIGateway.Utilities?.ShowMessage("Seamless", "Character Controls Reset!");
-
-            }
+            myCommands.Dispose();
+            base.Destroy();
         }
 
         private static void OnUserJoined(ref JoinResultMsg msg)
         {
             if (msg.JoinResult == JoinResult.OK && isSeamlessSwitching)
             {
-                //SeamlessClient.TryShow("User Joined! Result: " + msg.JoinResult.ToString());
+                //Invoke the switch event
+                SwitchingText = "Server Responded! Removing Old Entities and forcing client connection!";
+                EntityUtils.RemoveOldClientEntities();
+                ForceClientConnection();
+                ModAPI.ServerSwitched();
 
-                try
-                {
-                    //Invoke the switch event
-                    SwitchingText = "Server Responded! Removing Old Entities and forcing client connection!";
-                    RemoveOldEntities();
-                    ForceClientConnection();
-                    ModAPI.ServerSwitched();
 
-                    MySession.Static.LocalHumanPlayer?.Character?.Stand();
-                }
-                catch (Exception ex)
-                {
-                    Seamless.TryShow($"Error during seamless switch: {ex.Message}");
-                    MyLog.Default.WriteLineAndConsole($"SeamlessClient OnUserJoined Exception: {ex}");
-                    
-                    // Don't set isSeamlessSwitching to false yet - ForceClientConnection will retry
-                    SwitchingText = "Recovering from connection error...";
-                    
-                    // Ensure game isn't left paused
-                    if (MySandboxGame.IsPaused)
-                    {
-                        MySandboxGame.IsPaused = false;
-                    }
-                    
-                    // Let ForceClientConnection handle the retry logic
-                    return;
-                }
-
-                // Only set to false if everything succeeded
+                //reset character movement
+                MySession.Static.LocalHumanPlayer?.Character?.Stand();
+                isSeamlessSwitching = false;
+            }
+            else if (msg.JoinResult != JoinResult.OK && isSeamlessSwitching)
+            {
+                Seamless.TryShow($"Failed to joing the target server: {msg.JoinResult}");
                 isSeamlessSwitching = false;
             }
         }
@@ -203,7 +152,6 @@ namespace SeamlessClient.Components
            
             SwitchingText = "Starting Seamless Switch... Please wait!";
             isSeamlessSwitching = true;
-            ConnectionRetryCount = 0; // Reset retry count for new switch
             OldArmorSkin = MySession.Static.LocalHumanPlayer.BuildArmorSkin;
             TargetServer = _TargetServer;
             TargetWorld = _TargetWorld;
@@ -240,6 +188,7 @@ namespace SeamlessClient.Components
             MyMultiplayer.Static = UtilExtensions.CastToReflected(instance, PatchUtils.ClientType);
             MyMultiplayer.Static.ExperimentalMode = true;
 
+          
          
 
             // Set the new SyncLayer to the MySession.Static.SyncLayer
@@ -258,36 +207,8 @@ namespace SeamlessClient.Components
 
         private static void ForceClientConnection()
         {
-            // Validate critical objects before proceeding
-            if (TargetWorld?.Checkpoint == null || TargetServer == null || MySession.Static == null)
-            {
-                ConnectionRetryCount++;
-                Seamless.TryShow($"ForceClientConnection validation failed (Retry {ConnectionRetryCount}/{MaxConnectionRetries}) - TargetWorld: {TargetWorld != null}, Checkpoint: {TargetWorld?.Checkpoint != null}, TargetServer: {TargetServer != null}, Session: {MySession.Static != null}");
-                
-                if (ConnectionRetryCount >= MaxConnectionRetries)
-                {
-                    Seamless.TryShow("Max connection retries reached. Aborting seamless switch.");
-                    SwitchingText = "Connection failed - returning to game";
-                    isSeamlessSwitching = false;
-                    ConnectionRetryCount = 0;
-                    MySandboxGame.IsPaused = false;
-                    return;
-                }
-                
-                // Retry connection after a delay
-                MySandboxGame.Static.Invoke(delegate
-                {
-                    if (isSeamlessSwitching && TargetWorld != null && TargetServer != null)
-                    {
-                        SwitchingText = $"Retrying connection ({ConnectionRetryCount}/{MaxConnectionRetries})...";
-                        ForceClientConnection();
-                    }
-                }, "SeamlessClient Retry", 1000); // 1 second delay
-                return;
-            }
-            
-            // Reset retry count on successful validation
-            ConnectionRetryCount = 0;
+         
+
 
             //Set World Settings
             SetWorldSettings();
@@ -305,8 +226,8 @@ namespace SeamlessClient.Components
             MyRenderProxy.PreloadTextures(new string[1] { text }, TextureType.CubeMap);
 
             MyModAPIHelper.Initialize();
-            MySession.Static.LoadDataComponents();
-            MyModAPIHelper.Initialize();
+            //MySession.Static.LoadDataComponents();
+            //MyModAPIHelper.Initialize();
 
 
 
@@ -326,6 +247,7 @@ namespace SeamlessClient.Components
             MySandboxGame.IsPaused = false;
 
             MyHud.Chat.RegisterChat(MyMultiplayer.Static);
+
             GpsRegisterChat.Invoke(MySession.Static.Gpss, new object[] { MyMultiplayer.Static });
             SwitchingText = "Registered Chat";
 
@@ -402,17 +324,11 @@ namespace SeamlessClient.Components
         {
             //MyEntities.MemoryLimitAddFailureReset();
 
-            // Ensure we have valid checkpoint data
-            if (TargetWorld?.Checkpoint == null)
-            {
-                throw new InvalidOperationException("SetWorldSettings called with null TargetWorld or Checkpoint");
-            }
-
             //Clear old list
             MySession.Static.PromotedUsers.Clear();
             MySession.Static.CreativeTools.Clear();
             Dictionary<ulong, AdminSettingsEnum> AdminSettingsList = (Dictionary<ulong, AdminSettingsEnum>)RemoteAdminSettings.GetValue(MySession.Static);
-            AdminSettingsList?.Clear();
+            AdminSettingsList.Clear();
 
 
 
@@ -450,7 +366,8 @@ namespace SeamlessClient.Components
             MyRenderProxy.RebuildCullingStructure();
             //MySession.Static.Toolbars.LoadToolbars(checkpoint);
 
-            Sync.Players.RespawnComponent.InitFromCheckpoint(TargetWorld.Checkpoint);
+            var comp = MySession.Static.GetComponent<MySpaceRespawnComponent>();
+            comp.InitFromCheckpoint(TargetWorld.Checkpoint);
 
 
             // Set new admin settings
@@ -530,14 +447,12 @@ namespace SeamlessClient.Components
 
         private static void StartEntitySync()
         {
+
+
+
             Seamless.TryShow("Requesting Player From Server");
             Sync.Players.RequestNewPlayer(Sync.MyId, 0, MyGameService.UserName, null, realPlayer: true, initialPlayer: true);
-            if (MySession.Static.ControlledEntity == null && Sync.IsServer && !Sandbox.Engine.Platform.Game.IsDedicated)
-            {
-                MyLog.Default.WriteLine("ControlledObject was null, respawning character");
-                //m_cameraAwaitingEntity = true;
-                MyPlayerCollection.RequestLocalRespawn();
-            }
+
 
             //Request client state batch
             (MyMultiplayer.Static as MyMultiplayerClientBase).RequestBatchConfirmation();
@@ -545,6 +460,9 @@ namespace SeamlessClient.Components
             //typeof(MyGuiScreenTerminal).GetMethod("CreateTabs")
 
             MySession.Static.LoadDataComponents();
+            var comp = MySession.Static.GetComponent<MySpaceRespawnComponent>();
+            MySession.Static.Players.RespawnComponent = comp;
+
             //MyGuiSandbox.LoadData(false);
             //MyGuiSandbox.AddScreen(MyGuiSandbox.CreateScreen(MyPerGameSettings.GUI.HUDScreen));
             MyRenderProxy.RebuildCullingStructure();
@@ -610,18 +528,16 @@ namespace SeamlessClient.Components
             MySessionComponentIngameHelp component = MySession.Static.GetComponent<MySessionComponentIngameHelp>();
             component?.TryCancelObjective();
 
+
             //Clear all old players and clients.
             Sync.Clients.Clear();
             Sync.Players.ClearPlayers();
 
-
-            MyHud.Chat.UnregisterChat(MyMultiplayer.Static);
-
-
+            UnloadHud();
 
 
             MySession.Static.Gpss.RemovePlayerGpss(MySession.Static.LocalPlayerId);
-            MyHud.GpsMarkers.Clear();
+
             MyMultiplayer.Static.ReplicationLayer.Disconnect();
             MyMultiplayer.Static.ReplicationLayer.Dispose();
             MyMultiplayer.Static.Dispose();
@@ -636,23 +552,29 @@ namespace SeamlessClient.Components
 
             //Unload any lingering updates queued
             MyEntities.Orchestrator.Unload();
+
+            //Remove old medical screen
+            MyScreenManager.RemoveScreenByType(typeof(MyGuiScreenMedicals));
             
         }
 
-        private static void RemoveOldEntities()
+        private static void UnloadHud()
         {
-            foreach (var ent in MyEntities.GetEntities())
-            {
-                if (ent is MyPlanet)
-                {
-                    //Re-Add planet updates 
-                    MyEntities.RegisterForUpdate(ent);
-                    continue;
-                }
+            MyHud.Notifications.Clear();
+            MyHud.OreMarkers.Reload();
+            MyHud.LocationMarkers.Clear();
+            MyHud.HackingMarkers.Clear();
+            MyHud.ObjectiveLine.Clear();
+            MyHud.ChangedInventoryItems.Clear();
+            MyHud.GravityIndicator.Clean();
+            MyHud.SelectedObjectHighlight.Clean();
+            MyGuiScreenToolbarConfigBase.Reset();
+            MyHud.Questlog.CleanDetails();
+            MyHud.Chat.UnregisterChat(MyMultiplayer.Static);
 
-                ent.Close();
-            }
         }
+
+
 
         private static void ResetCoordinateSystems()
         {
