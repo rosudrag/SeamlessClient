@@ -56,6 +56,7 @@ namespace SeamlessClient.Components
         private static FieldInfo AdminSettings;
         private static FieldInfo RemoteAdminSettings;
         private static FieldInfo VirtualClients;
+        private static FieldInfo PlayerGpss;
         private static PropertyInfo MySessionLayer;
 
         public static MyGameServerItem TargetServer { get; private set; }
@@ -68,6 +69,7 @@ namespace SeamlessClient.Components
 
         public ServerSwitcherV1() { Instance = this; }
         public static string SwitchingText = string.Empty;
+
 
         public override void Patch(Harmony patcher)
         {
@@ -85,7 +87,10 @@ namespace SeamlessClient.Components
             InitVirtualClients = PatchUtils.GetMethod(PatchUtils.VirtualClientsType, "Init");
             VirtualClients = PatchUtils.GetField(typeof(MySession), "VirtualClients");
 
+
             patcher.Patch(onJoin, postfix: new HarmonyMethod(Get(typeof(ServerSwitcherV1), nameof(OnUserJoined))));
+
+          
         }
 
         public override void Update()
@@ -187,9 +192,10 @@ namespace SeamlessClient.Components
 
             MyMultiplayer.Static = UtilExtensions.CastToReflected(instance, PatchUtils.ClientType);
             MyMultiplayer.Static.ExperimentalMode = true;
+            MyMultiplayer.Static.HostLeft += Static_HostLeft;
+            MyGameService.Peer2Peer.ConnectionFailed += Peer2Peer_ConnectionFailed;
 
-          
-         
+
 
             // Set the new SyncLayer to the MySession.Static.SyncLayer
             MySessionLayer.SetValue(MySession.Static, MyMultiplayer.Static.SyncLayer);
@@ -203,7 +209,18 @@ namespace SeamlessClient.Components
             SwitchingText = "Registering Player Events";
         }
 
+        private void Static_HostLeft()
+        {
+            Seamless.TryShow($"MyMultiplayer Host Left. Returning to MainMenu. Transfer Failed.");
+            isSeamlessSwitching = false;
+            MyMultiplayer.Static.HostLeft -= Static_HostLeft;
+        }
 
+        private void Peer2Peer_ConnectionFailed(ulong arg1, string arg2)
+        {
+            Seamless.TryShow($"Seamless P2P Connection Failed {arg1} : {arg2}. Attempting to reconnect...");
+            MyGameService.Peer2Peer.ConnectionFailed -= Peer2Peer_ConnectionFailed;
+        }
 
         private static void ForceClientConnection()
         {
@@ -529,14 +546,16 @@ namespace SeamlessClient.Components
             component?.TryCancelObjective();
 
 
+            long myPlayerID = MySession.Static.LocalPlayerId;
+
             //Clear all old players and clients.
             Sync.Clients.Clear();
             Sync.Players.ClearPlayers();
 
+
+
+            //MySession.Static.Gpss.RemovePlayerGpss(myPlayerID);
             UnloadHud();
-
-
-            MySession.Static.Gpss.RemovePlayerGpss(MySession.Static.LocalPlayerId);
 
             MyMultiplayer.Static.ReplicationLayer.Disconnect();
             MyMultiplayer.Static.ReplicationLayer.Dispose();
@@ -547,14 +566,17 @@ namespace SeamlessClient.Components
             //Clear grid coord systems
             ResetCoordinateSystems();
 
-            //Close any respawn screens that are open
-            MyGuiScreenMedicals.Close();
+            //Close any screens that could be open
+            //MyGuiScreenMedicals.Close();
+            MyScreenManager.CloseScreenNow(typeof(MyGuiScreenMedicals));
+            MyScreenManager.CloseScreenNow(typeof(MyGuiScreenTerminal));
 
             //Unload any lingering updates queued
             MyEntities.Orchestrator.Unload();
 
             //Remove old medical screen
             MyScreenManager.RemoveScreenByType(typeof(MyGuiScreenMedicals));
+
             
         }
 
@@ -563,6 +585,7 @@ namespace SeamlessClient.Components
             MyHud.Notifications.Clear();
             MyHud.OreMarkers.Reload();
             MyHud.LocationMarkers.Clear();
+            MyHud.GpsMarkers.Clear();
             MyHud.HackingMarkers.Clear();
             MyHud.ObjectiveLine.Clear();
             MyHud.ChangedInventoryItems.Clear();
@@ -571,6 +594,7 @@ namespace SeamlessClient.Components
             MyGuiScreenToolbarConfigBase.Reset();
             MyHud.Questlog.CleanDetails();
             MyHud.Chat.UnregisterChat(MyMultiplayer.Static);
+            
 
         }
 
