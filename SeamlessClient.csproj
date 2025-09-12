@@ -17,7 +17,7 @@
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
+    <OutputPath>..\..\..\Downloads\Pulsar-v2.0.1\Legacy\Local\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
@@ -33,10 +33,6 @@
   <ItemGroup>
     <Reference Include="0Harmony, Version=2.3.6.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>packages\Lib.Harmony.2.3.6\lib\net48\0Harmony.dll</HintPath>
-    </Reference>
-    <Reference Include="NLog">
-      <HintPath>GameBinaries\NLog.dll</HintPath>
-      <Private>False</Private>
     </Reference>
     <Reference Include="ProtoBuf.Net">
       <HintPath>GameBinaries\ProtoBuf.Net.dll</HintPath>
